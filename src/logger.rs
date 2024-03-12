@@ -8,34 +8,45 @@ use std::{
 #[derive(Debug)]
 pub struct Logger {
     buffer: Vec<String>,
-    file: File,
+    file: Option<File>,
 }
 
 impl Logger {
-    pub fn new(cfg: &Config, path: &str) -> Result<Logger, String> {
-        let path = PathBuf::from(path);
-        if path.exists() {
-            let _ = remove_file(&path);
+    pub fn new(skip: bool, cfg: &Config, path: &str) -> Result<Logger, String> {
+        if skip {
+            Ok(Logger {
+                buffer: Vec::new(),
+                file: None,
+            })
+        } else {
+            let path = PathBuf::from(path);
+            if path.exists() {
+                let _ = remove_file(&path);
+            }
+            Ok(Logger {
+                buffer: Vec::with_capacity(cfg.log_buffer),
+                file: Some(File::create(&path).unwrap()),
+            })
         }
-        Ok(Logger {
-            buffer: Vec::with_capacity(cfg.log_buffer),
-            file: File::create(&path).unwrap(),
-        })
     }
     pub fn log(&mut self, mut str: String, cfg: &Config) {
-        str.push_str("\n");
-        self.buffer.push(str);
-        if self.buffer.len() >= cfg.log_buffer {
-            for msg in self.buffer.iter() {
-                let _ = self.file.write(msg.as_bytes());
+        if let Some(file) = &mut self.file {
+            str.push_str("\n");
+            self.buffer.push(str);
+            if self.buffer.len() >= cfg.log_buffer {
+                for msg in self.buffer.iter() {
+                    let _ = file.write(msg.as_bytes());
+                }
+                self.buffer.clear();
             }
-            self.buffer.clear();
         }
     }
 
     pub fn flush(&mut self) {
-        for msg in self.buffer.iter() {
-            let _ = self.file.write(msg.as_bytes());
+        if let Some(file) = &mut self.file {
+            for msg in self.buffer.iter() {
+                let _ = file.write(msg.as_bytes());
+            }
         }
         self.buffer.clear();
     }
@@ -49,10 +60,10 @@ mod test {
     use crate::config::Config;
 
     #[test]
-    fn test_logger() {
+    fn logger() {
         let mut cfg = Config::default();
         cfg.log_buffer = 5;
-        let mut logger = Logger::new(&cfg, "test_logger.log").unwrap();
+        let mut logger = Logger::new(false, &cfg, "test_logger.log").unwrap();
         for i in 0..5 {
             logger.log(format!("Line: {}", i), &cfg);
         }
@@ -70,9 +81,9 @@ mod test {
     }
 
     #[test]
-    fn test_flush() {
+    fn flush() {
         let cfg = Config::default();
-        let mut logger = Logger::new(&cfg, "test_flush.log").unwrap();
+        let mut logger = Logger::new(false, &cfg, "test_flush.log").unwrap();
         logger.log("Line: 1".to_string(), &cfg);
         logger.flush();
         std::mem::drop(logger);

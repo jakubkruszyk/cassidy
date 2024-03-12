@@ -4,18 +4,10 @@ use crate::config::Config;
 use rand::{self, rngs::StdRng, Rng};
 
 #[derive(Debug)]
-pub enum UserState {
-    Processed,
-    Dropped,
-    Redirected,
-}
-
-#[derive(Debug)]
 pub struct User {
     pub id: usize,
     pub start: f64,
     pub end: f64,
-    pub state: UserState,
 }
 
 impl User {
@@ -26,7 +18,6 @@ impl User {
             id,
             start: curr_time,
             end: curr_time + delay,
-            state: UserState::Processed, // Initial state do not matter
         }
     }
 }

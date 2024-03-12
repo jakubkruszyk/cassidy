@@ -53,6 +53,7 @@ pub struct LambdaPoint {
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(default)]
 pub struct Config {
+    pub sim_duration: f64,     // [h]
     pub process_time_max: f64, // [s]
     pub process_time_min: f64, // [s]
     pub lambda: f64,
@@ -71,6 +72,7 @@ pub struct Config {
 impl Default for Config {
     fn default() -> Self {
         Self {
+            sim_duration: 24.0,
             process_time_max: 0.0,
             process_time_min: 15.0,
             lambda: 1.0,
@@ -107,6 +109,9 @@ impl Default for Config {
 
 impl Config {
     pub fn validate(&self) -> Result<(), &str> {
+        if self.sim_duration < 0.0 {
+            return Err("sim_duration must be greater than 0");
+        }
         if self.process_time_min < 0.0 {
             return Err("process_time_min must be greater than 0");
         }
