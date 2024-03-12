@@ -8,10 +8,16 @@ use serde::{Deserialize, Serialize};
 pub struct Cli {
     /// Number of available resource blocks in BaseStation.
     #[arg(long, value_name = "number")]
-    resources: Option<u32>,
+    pub resources: Option<u32>,
     /// Path to config file. This option cannot be used with any other config switch.
     #[arg(long, value_name = "path")]
-    with_config: Option<PathBuf>,
+    pub with_config: Option<PathBuf>,
+    #[arg(long)]
+    pub seed: Option<u64>,
+    #[arg(long)]
+    pub log: bool,
+    #[arg(long)]
+    pub log_path: Option<String>,
 }
 
 impl Cli {
@@ -59,6 +65,7 @@ pub struct Config {
     pub sleep_power: f64,  // [W]
     pub wakeup_power: f64, // [W]
     pub wakeup_delay: f64, // [s]
+    pub log_buffer: usize,
 }
 
 impl Default for Config {
@@ -93,6 +100,7 @@ impl Default for Config {
             sleep_power: 1.0,
             wakeup_power: 1000.0,
             wakeup_delay: 0.05,
+            log_buffer: 1000,
         }
     }
 }
