@@ -6,18 +6,24 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Parser)]
 #[command(version, about, long_about = None)]
 pub struct Cli {
-    /// Number of available resource blocks in BaseStation.
-    #[arg(long, value_name = "number")]
-    pub resources: Option<u32>,
     /// Path to config file. This option cannot be used with any other config switch.
     #[arg(long, value_name = "path")]
     pub with_config: Option<PathBuf>,
-    #[arg(long)]
+    /// Seed for random number generator
+    #[arg(long, value_name = "u64")]
     pub seed: Option<u64>,
+    /// Generate log file
     #[arg(long)]
     pub log: bool,
-    #[arg(long)]
-    pub log_path: Option<String>,
+    /// Path where log file will be saved to
+    #[arg(long, value_name = "path")]
+    pub log_path: Option<PathBuf>,
+    /// Time in hours, simulation will be run for
+    #[arg(long, value_name = "time")]
+    pub duration: f64,
+    /// Simulation iterations count
+    #[arg(long, value_name = "u32")]
+    pub iterations: u32,
 }
 
 impl Cli {
@@ -41,6 +47,29 @@ impl Cli {
         } else {
             Ok(Config::default())
         }
+    }
+
+    pub fn validate(&self) -> Result<(), String> {
+        if self.duration < 0.0 {
+            return Err("Duration must be greater than 0".to_string());
+        }
+        if let Some(path) = &self.with_config {
+            if !path.exists() {
+                return Err(format!(
+                    "Given path to config file: '{}' does not exists",
+                    &path.display()
+                ));
+            }
+        }
+        if let Some(path) = &self.log_path {
+            if !path.exists() {
+                return Err(format!(
+                    "Given path to log file: '{}' does not exists",
+                    &path.display()
+                ));
+            }
+        }
+        Ok(())
     }
 }
 

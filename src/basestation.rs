@@ -169,6 +169,7 @@ mod test {
     use super::{BaseStation, BaseStationEvent, BaseStationState};
     use crate::{config::Config, logger::Logger, sim_container::SimState, user::User};
     use rand::{rngs::StdRng, SeedableRng};
+    use std::process::Command;
 
     #[test]
     fn add_release_user() {
@@ -176,7 +177,7 @@ mod test {
         let event = BaseStationEvent::AddUser;
         let mut cfg = Config::default();
         cfg.resources_count = 10;
-        let mut logger = Logger::new(false, &cfg, "test_add_release_user.log").unwrap();
+        let mut logger = Logger::new(true, &cfg, "test_add_release_user.log").unwrap();
         let mut rng = StdRng::seed_from_u64(1);
         let mut station = BaseStation::new(1, &cfg, 1.0, &mut rng);
         let mut sim_state = SimState::new(&cfg);
@@ -216,7 +217,7 @@ mod test {
         // Adding (redirect) from states different from Active
         let mut cfg = Config::default();
         cfg.resources_count = 10;
-        let mut logger = Logger::new(false, &cfg, "test_add_user_all_states.log").unwrap();
+        let mut logger = Logger::new(true, &cfg, "test_add_user_all_states.log").unwrap();
         let mut rng = StdRng::seed_from_u64(1);
         let mut sim_state = SimState::new(&cfg);
         let mut station = BaseStation::new(1, &cfg, 1.0, &mut rng);
@@ -258,7 +259,7 @@ mod test {
     fn get_event() {
         let mut cfg = Config::default();
         cfg.resources_count = 10;
-        let mut logger = Logger::new(false, &cfg, "test_add_user_all_states.log").unwrap();
+        let mut logger = Logger::new(true, &cfg, "test_add_user_all_states.log").unwrap();
         let mut rng = StdRng::seed_from_u64(1);
         let mut sim_state = SimState::new(&cfg);
         let mut station = BaseStation::new(1, &cfg, 1.0, &mut rng);
@@ -321,5 +322,59 @@ mod test {
         let res = station.get_next_event();
         assert_eq!(res.0, 25.0);
         assert!(std::matches!(res.1, BaseStationEvent::ShutDown));
+    }
+
+    #[test]
+    fn test_add_release_order() {
+        let mut cfg = Config::default();
+        cfg.resources_count = 10;
+        let mut logger = Logger::new(false, &cfg, "tests/add_release_order.log").unwrap();
+        let mut rng = StdRng::seed_from_u64(1);
+        let mut sim_state = SimState::new(&cfg);
+        let mut station = BaseStation::new(1, &cfg, 1.0, &mut rng);
+        // add users to max capacity
+        for _ in 0..10 {
+            let res = station.execute_event(
+                &BaseStationEvent::AddUser,
+                &cfg,
+                &mut sim_state,
+                &mut rng,
+                &mut logger,
+            );
+            assert_eq!(res.is_none(), true);
+        }
+        // release all users
+        for _ in 0..10 {
+            let res = station.execute_event(
+                &BaseStationEvent::ReleaseUser,
+                &cfg,
+                &mut sim_state,
+                &mut rng,
+                &mut logger,
+            );
+            assert_eq!(res.is_none(), true);
+        }
+        logger.flush();
+        // compare log to reference
+        let diff = Command::new("diff")
+            .args([
+                "tests/add_release_order.log",
+                "tests/references/add_release_order.log",
+            ])
+            .output()
+            .expect("Failed to diff results.");
+        match diff.status.code() {
+            Some(code) => {
+                if code != 0 {
+                    let _ = std::fs::write("tests/add_release_order.log.diff", &diff.stdout);
+                    panic!(
+                        "error code != 0\n{}",
+                        String::from_utf8(diff.stdout).unwrap()
+                    );
+                }
+            }
+            None => panic!("Unable to unwrap error code"),
+        };
+        assert_eq!(diff.status.code().unwrap(), 0);
     }
 }

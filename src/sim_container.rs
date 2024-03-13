@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 use clap::Parser;
 use rand::prelude::*;
 use rand::SeedableRng;
@@ -48,7 +50,7 @@ impl SimContainer {
         let cfg = cli.create_config()?;
         let log_path = if cli.log {
             match &cli.log_path {
-                Some(p) => p.as_str(),
+                Some(p) => p.to_str().unwrap(),
                 None => "sim.log",
             }
         } else {
@@ -84,6 +86,7 @@ impl SimContainer {
                 sim_state.lambda_update_time = sim_state.time + l_next.time;
                 sim_state.lambda_update_idx =
                     (sim_state.lambda_update_idx + 1) % self.cfg.lambda_coefs.len();
+                self.logger.log(format!("{}  Lambda updated to: {}", sim_state.time, sim_state.lambda), &self.cfg);
             }
 
             // get next event
@@ -152,5 +155,67 @@ impl SimContainer {
             .unwrap();
         redirect_station.redirect_here(&self.cfg, user)?;
         Ok(redirect_station.id)
+    }
+}
+
+// test only functions
+impl SimContainer {
+    fn new_test(log: bool, log_path: PathBuf) -> SimContainer {
+        let cli = Cli{ with_config: None, seed: Some(1), log, log_path: Some(log_path), duration: 10.0, iterations: 1};
+        let cfg = cli.create_config().unwrap();
+        let logger = Logger::new(true, &cfg, "sim.log").unwrap();
+        let mut rng = StdRng::seed_from_u64(cli.seed.unwrap());
+        let stations = vec![BaseStation::new(0, &cfg, 1.0, &mut rng), BaseStation::new(1, &cfg, 1.0, &mut rng)];
+        SimContainer {
+            cli,
+            cfg,
+            logger,
+            rng,
+            stations,
+        }
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use std::path::PathBuf;
+
+    use crate::{sim_container::{SimContainer, SimState}, basestation::{BaseStation, BaseStationEvent}, user::User};
+
+    #[test]
+    fn redirect() {
+        // test user redirection
+        let mut container = SimContainer::new_test(true, PathBuf::from("redirect.log"));
+        let mut sim_state = SimState::new(&container.cfg);
+        container.cfg.stations_count = 2;
+        container.cfg.resources_count = 2;
+        container.stations = vec![
+            BaseStation::new(0, &container.cfg, 1.0, &mut container.rng), 
+            BaseStation::new(1, &container.cfg, 1.0, &mut container.rng),
+            BaseStation::new(2, &container.cfg, 1.0, &mut container.rng),
+        ];
+        container.stations[0].execute_event(&BaseStationEvent::AddUser, &container.cfg, &mut sim_state, &mut container.rng, &mut container.logger);
+        container.stations[0].execute_event(&BaseStationEvent::AddUser, &container.cfg, &mut sim_state, &mut container.rng, &mut container.logger);
+        container.stations[2].execute_event(&BaseStationEvent::AddUser, &container.cfg, &mut sim_state, &mut container.rng, &mut container.logger);
+        // 2 redirection candidates with different usage
+        let user = User{ id: 1, start: 0.0, end: 10.0 };
+        let res = container.redirect(user);
+        assert_eq!(res.is_ok(), true);
+        assert_eq!(res.unwrap(), 1);
+        // 2 redirection candidates with same usage
+        let user = User{ id: 2, start: 0.0, end: 10.0 };
+        let res = container.redirect(user);
+        assert_eq!(res.is_ok(), true);
+        assert_eq!(res.unwrap(), 1);
+        // single redirection candidate
+        let user = User{ id: 3, start: 0.0, end: 10.0 };
+        let res = container.redirect(user);
+        assert_eq!(res.is_ok(), true);
+        assert_eq!(res.unwrap(), 2);
+        container.stations[2].execute_event(&BaseStationEvent::AddUser, &container.cfg, &mut sim_state, &mut container.rng, &mut container.logger);
+        // no redirection candidates
+        let user = User{ id: 3, start: 0.0, end: 10.0 };
+        let res = container.redirect(user);
+        assert_eq!(res.is_err(), true);
     }
 }
