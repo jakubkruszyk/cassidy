@@ -7,5 +7,9 @@ mod sim_container;
 mod user;
 
 fn main() {
-    let scene = SimContainer::new();
+    let mut scene = match SimContainer::new() {
+        Ok(s) => s,
+        Err(e) => panic!("{}", e),
+    };
+    scene.simulate();
 }

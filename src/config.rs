@@ -49,7 +49,7 @@ impl Cli {
         }
     }
 
-    pub fn validate(&self) -> Result<(), String> {
+    pub fn validate(self) -> Result<Cli, String> {
         if self.duration < 0.0 {
             return Err("Duration must be greater than 0".to_string());
         }
@@ -69,7 +69,7 @@ impl Cli {
                 ));
             }
         }
-        Ok(())
+        Ok(self)
     }
 }
 
@@ -82,7 +82,6 @@ pub struct LambdaPoint {
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(default)]
 pub struct Config {
-    pub sim_duration: f64,     // [h]
     pub process_time_max: f64, // [s]
     pub process_time_min: f64, // [s]
     pub lambda: f64,
@@ -101,9 +100,8 @@ pub struct Config {
 impl Default for Config {
     fn default() -> Self {
         Self {
-            sim_duration: 24.0,
-            process_time_max: 0.0,
-            process_time_min: 15.0,
+            process_time_max: 15.0,
+            process_time_min: 0.0,
             lambda: 1.0,
             lambda_coefs: vec![
                 LambdaPoint {
@@ -137,42 +135,39 @@ impl Default for Config {
 }
 
 impl Config {
-    pub fn validate(&self) -> Result<(), &str> {
-        if self.sim_duration < 0.0 {
-            return Err("sim_duration must be greater than 0");
-        }
+    pub fn validate(self) -> Result<Config, String> {
         if self.process_time_min < 0.0 {
-            return Err("process_time_min must be greater than 0");
+            return Err("process_time_min must be greater than 0".to_owned());
         }
         if self.process_time_max < self.process_time_min {
-            return Err("process_time_max must be greater than process_time_min");
+            return Err("process_time_max must be greater than process_time_min".to_owned());
         }
         for lp in self.lambda_coefs.iter() {
             if lp.coef < 1.0 {
-                return Err("lambda must be greater than 1.0");
+                return Err("lambda must be greater than 1.0".to_owned());
             }
             if lp.time < 0.0 {
-                return Err("lambda timestamp must be greater than 0");
+                return Err("lambda timestamp must be greater than 0".to_owned());
             }
         }
         if self.sleep_threshold > 100 {
-            return Err("sleep_threshold must be from range [0-100]%");
+            return Err("sleep_threshold must be from range [0-100]%".to_owned());
         }
         if self.wakeup_threshold > 100 || self.wakeup_threshold < self.sleep_threshold {
-            return Err("wakeup_threshold must be from range [0-100]% and must be greater than sleep_threshold");
+            return Err("wakeup_threshold must be from range [0-100]% and must be greater than sleep_threshold".to_owned());
         }
         if self.active_power < 0.0 {
-            return Err("active_power must be greater than 0");
+            return Err("active_power must be greater than 0".to_owned());
         }
         if self.sleep_power < 0.0 {
-            return Err("sleep_power must be greater than 0");
+            return Err("sleep_power must be greater than 0".to_owned());
         }
         if self.wakeup_power < 0.0 {
-            return Err("wakeup_power must be greater than 0");
+            return Err("wakeup_power must be greater than 0".to_owned());
         }
         if self.wakeup_delay < 0.0 {
-            return Err("wakeup_delay must be greater than 0");
+            return Err("wakeup_delay must be greater than 0".to_owned());
         }
-        Ok(())
+        Ok(self)
     }
 }

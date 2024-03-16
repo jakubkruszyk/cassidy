@@ -86,20 +86,30 @@ impl BaseStation {
     ) -> Option<User> {
         match event {
             BaseStationEvent::AddUser => {
-                self.next_user_add = BaseStation::get_new_timestamp(sim_state.lambda, rng);
+                self.next_user_add =
+                    sim_state.time + BaseStation::get_new_timestamp(sim_state.lambda, rng);
                 let user = User::new(sim_state.next_user_id, sim_state.time, rng, cfg);
                 sim_state.next_user_id += 1;
                 match self.state {
                     BaseStationState::Active => {
                         if self.resources.len() >= cfg.resources_count {
                             // All resources are being used. Return user for redirect
+                            logger.log(
+                                format!(
+                                    "UserCreated\tStation id: {}\t{}\tnext user: {}",
+                                    self.id, &user, &self.next_user_add
+                                ),
+                                sim_state.time,
+                                &cfg,
+                            );
                             return Some(user);
                         }
                         logger.log(
                             format!(
-                                "{}  Station id {}: {} was added.",
-                                sim_state.time, self.id, &user
+                                "UserAdd\tStation id: {}\t{}\tnext user: {}",
+                                self.id, &user, &self.next_user_add
                             ),
+                            sim_state.time,
                             &cfg,
                         );
                         self.resources.push(user);
@@ -117,19 +127,27 @@ impl BaseStation {
                 }
                 let user = self.resources.pop().unwrap();
                 logger.log(
-                    format!(
-                        "{}  Station id: {}: {} was released.",
-                        sim_state.time, self.id, &user
-                    ),
+                    format!("UserRelease\tStation id: {}\t{}", self.id, &user),
+                    sim_state.time,
                     &cfg,
                 );
                 None
             }
             BaseStationEvent::PowerUp => {
+                logger.log(
+                    format!("StateChange\tStation id: {}\tActive", self.id),
+                    sim_state.time,
+                    &cfg,
+                );
                 self.state = BaseStationState::Active;
                 None
             }
             BaseStationEvent::ShutDown => {
+                logger.log(
+                    format!("StateChange\tStation id: {}\tSleep", self.id),
+                    sim_state.time,
+                    &cfg,
+                );
                 self.state = BaseStationState::Sleep;
                 None
             }
@@ -177,7 +195,7 @@ mod test {
         let event = BaseStationEvent::AddUser;
         let mut cfg = Config::default();
         cfg.resources_count = 10;
-        let mut logger = Logger::new(true, &cfg, "test_add_release_user.log").unwrap();
+        let mut logger = Logger::new(false, &cfg, "test_add_release_user.log").unwrap();
         let mut rng = StdRng::seed_from_u64(1);
         let mut station = BaseStation::new(1, &cfg, 1.0, &mut rng);
         let mut sim_state = SimState::new(&cfg);
@@ -204,7 +222,7 @@ mod test {
         // Test release from empty heap
         let mut cfg = Config::default();
         cfg.resources_count = 10;
-        let mut logger = Logger::new(true, &cfg, "test_release_user_panic.log").unwrap();
+        let mut logger = Logger::new(false, &cfg, "test_release_user_panic.log").unwrap();
         let mut rng = StdRng::seed_from_u64(1);
         let mut station = BaseStation::new(1, &cfg, 1.0, &mut rng);
         let mut sim_state = SimState::new(&cfg);
@@ -217,7 +235,7 @@ mod test {
         // Adding (redirect) from states different from Active
         let mut cfg = Config::default();
         cfg.resources_count = 10;
-        let mut logger = Logger::new(true, &cfg, "test_add_user_all_states.log").unwrap();
+        let mut logger = Logger::new(false, &cfg, "test_add_user_all_states.log").unwrap();
         let mut rng = StdRng::seed_from_u64(1);
         let mut sim_state = SimState::new(&cfg);
         let mut station = BaseStation::new(1, &cfg, 1.0, &mut rng);
@@ -259,7 +277,7 @@ mod test {
     fn get_event() {
         let mut cfg = Config::default();
         cfg.resources_count = 10;
-        let mut logger = Logger::new(true, &cfg, "test_add_user_all_states.log").unwrap();
+        let mut logger = Logger::new(false, &cfg, "test_add_user_all_states.log").unwrap();
         let mut rng = StdRng::seed_from_u64(1);
         let mut sim_state = SimState::new(&cfg);
         let mut station = BaseStation::new(1, &cfg, 1.0, &mut rng);
@@ -328,7 +346,7 @@ mod test {
     fn test_add_release_order() {
         let mut cfg = Config::default();
         cfg.resources_count = 10;
-        let mut logger = Logger::new(false, &cfg, "tests/add_release_order.log").unwrap();
+        let mut logger = Logger::new(true, &cfg, "tests/add_release_order.log").unwrap();
         let mut rng = StdRng::seed_from_u64(1);
         let mut sim_state = SimState::new(&cfg);
         let mut station = BaseStation::new(1, &cfg, 1.0, &mut rng);

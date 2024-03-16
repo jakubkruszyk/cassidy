@@ -46,8 +46,8 @@ pub struct SimContainer {
 
 impl SimContainer {
     pub fn new() -> Result<SimContainer, String> {
-        let cli = Cli::parse();
-        let cfg = cli.create_config()?;
+        let cli = Cli::parse().validate()?;
+        let mut cfg = cli.create_config()?.validate()?;
         let log_path = if cli.log {
             match &cli.log_path {
                 Some(p) => p.to_str().unwrap(),
@@ -58,6 +58,10 @@ impl SimContainer {
         };
         let logger = Logger::new(cli.log, &cfg, log_path)?;
         let curr_lambda = cfg.lambda * cfg.lambda_coefs[0].coef;
+        // conver lambda timestamps from hours to seconds
+        for p in cfg.lambda_coefs.iter_mut() {
+            p.time *= 3600.0;
+        }
         let mut rng = match cli.seed {
             Some(seed) => StdRng::seed_from_u64(seed),
             None => StdRng::from_entropy(),
@@ -77,16 +81,20 @@ impl SimContainer {
 
     pub fn simulate(&mut self) {
         let mut sim_state = SimState::new(&self.cfg);
-        let end_time = self.cfg.sim_duration * 3600.0;
+        let end_time = self.cli.duration * 3600.0;
         while sim_state.time < end_time {
             // update lambda
-            if sim_state.lambda_update_time >= sim_state.time {
+            if sim_state.time >= sim_state.lambda_update_time {
                 let l_next = &self.cfg.lambda_coefs[sim_state.lambda_update_idx];
                 sim_state.lambda = self.cfg.lambda * l_next.coef;
                 sim_state.lambda_update_time = sim_state.time + l_next.time;
                 sim_state.lambda_update_idx =
                     (sim_state.lambda_update_idx + 1) % self.cfg.lambda_coefs.len();
-                self.logger.log(format!("{}  Lambda updated to: {}", sim_state.time, sim_state.lambda), &self.cfg);
+                self.logger.log(
+                    format!("Lambda updated to: {}", sim_state.lambda),
+                    sim_state.time,
+                    &self.cfg,
+                );
             }
 
             // get next event
@@ -97,12 +105,18 @@ impl SimContainer {
                 if time < next_event_time {
                     next_event_time = time;
                     next_event = event;
-                    event_station = i;
+                    event_station = i + 1; // offset from iteration range
                 }
             }
 
             // update time counter
+            if next_event_time < sim_state.time {
+                panic!("Internal error: next event timestamp < current timestamp");
+            }
             sim_state.time = next_event_time;
+            if sim_state.time > end_time {
+                break;
+            }
 
             // execute event
             let res = self.stations[event_station].execute_event(
@@ -123,16 +137,18 @@ impl SimContainer {
                         let from_station_id = self.stations[event_station].id;
                         self.logger.log(
                             format!(
-                            "{}  User id: {} was redirected from Station id: {} to Station id: {}",
-                            sim_state.time, redirected_user_id, from_station_id, to_station_id 
-                        ),
+                                "Redirect\tUser id: {} from Station id: {} to Station id: {}",
+                                redirected_user_id, from_station_id, to_station_id
+                            ),
+                            sim_state.time,
                             &self.cfg,
                         )
                     }
                     Err(_) => {
                         sim_state.dropped_users += 1;
                         self.logger.log(
-                            format!("{}  User id: {} dropped", sim_state.time, redirected_user_id),
+                            format!("User id: {} dropped", redirected_user_id),
+                            sim_state.time,
                             &self.cfg,
                         )
                     }
@@ -141,6 +157,7 @@ impl SimContainer {
 
             // check for potential power-up/down of stations
         }
+        self.logger.flush();
     }
 
     fn redirect(&mut self, user: User) -> Result<usize, ()> {
@@ -160,12 +177,24 @@ impl SimContainer {
 
 // test only functions
 impl SimContainer {
-    fn new_test(log: bool, log_path: PathBuf) -> SimContainer {
-        let cli = Cli{ with_config: None, seed: Some(1), log, log_path: Some(log_path), duration: 10.0, iterations: 1};
-        let cfg = cli.create_config().unwrap();
-        let logger = Logger::new(true, &cfg, "sim.log").unwrap();
+    pub fn new_test(s: usize, r: usize, log: bool, log_path: PathBuf) -> SimContainer {
+        let cli = Cli {
+            with_config: None,
+            seed: Some(1),
+            log,
+            log_path: Some(log_path.clone()),
+            duration: 1.0,
+            iterations: 1,
+        };
+        let mut cfg = cli.create_config().unwrap();
+        cfg.stations_count = s;
+        cfg.resources_count = r;
+        let logger = Logger::new(log, &cfg, log_path.to_str().unwrap()).unwrap();
         let mut rng = StdRng::seed_from_u64(cli.seed.unwrap());
-        let stations = vec![BaseStation::new(0, &cfg, 1.0, &mut rng), BaseStation::new(1, &cfg, 1.0, &mut rng)];
+        let mut stations = Vec::new();
+        for i in 0..s {
+            stations.push(BaseStation::new(i, &cfg, 1.0, &mut rng));
+        }
         SimContainer {
             cli,
             cfg,
@@ -178,44 +207,107 @@ impl SimContainer {
 
 #[cfg(test)]
 mod test {
-    use std::path::PathBuf;
-
-    use crate::{sim_container::{SimContainer, SimState}, basestation::{BaseStation, BaseStationEvent}, user::User};
+    use crate::{
+        basestation::BaseStationEvent,
+        sim_container::{SimContainer, SimState},
+        user::User,
+    };
+    use std::{path::PathBuf, process::Command};
 
     #[test]
     fn redirect() {
         // test user redirection
-        let mut container = SimContainer::new_test(true, PathBuf::from("redirect.log"));
+        let mut container =
+            SimContainer::new_test(3, 2, false, PathBuf::from("tests/redirect.log"));
         let mut sim_state = SimState::new(&container.cfg);
-        container.cfg.stations_count = 2;
-        container.cfg.resources_count = 2;
-        container.stations = vec![
-            BaseStation::new(0, &container.cfg, 1.0, &mut container.rng), 
-            BaseStation::new(1, &container.cfg, 1.0, &mut container.rng),
-            BaseStation::new(2, &container.cfg, 1.0, &mut container.rng),
-        ];
-        container.stations[0].execute_event(&BaseStationEvent::AddUser, &container.cfg, &mut sim_state, &mut container.rng, &mut container.logger);
-        container.stations[0].execute_event(&BaseStationEvent::AddUser, &container.cfg, &mut sim_state, &mut container.rng, &mut container.logger);
-        container.stations[2].execute_event(&BaseStationEvent::AddUser, &container.cfg, &mut sim_state, &mut container.rng, &mut container.logger);
+        container.stations[0].execute_event(
+            &BaseStationEvent::AddUser,
+            &container.cfg,
+            &mut sim_state,
+            &mut container.rng,
+            &mut container.logger,
+        );
+        container.stations[0].execute_event(
+            &BaseStationEvent::AddUser,
+            &container.cfg,
+            &mut sim_state,
+            &mut container.rng,
+            &mut container.logger,
+        );
+        container.stations[2].execute_event(
+            &BaseStationEvent::AddUser,
+            &container.cfg,
+            &mut sim_state,
+            &mut container.rng,
+            &mut container.logger,
+        );
         // 2 redirection candidates with different usage
-        let user = User{ id: 1, start: 0.0, end: 10.0 };
+        let user = User {
+            id: 1,
+            start: 0.0,
+            end: 10.0,
+        };
         let res = container.redirect(user);
         assert_eq!(res.is_ok(), true);
         assert_eq!(res.unwrap(), 1);
         // 2 redirection candidates with same usage
-        let user = User{ id: 2, start: 0.0, end: 10.0 };
+        let user = User {
+            id: 2,
+            start: 0.0,
+            end: 10.0,
+        };
         let res = container.redirect(user);
         assert_eq!(res.is_ok(), true);
         assert_eq!(res.unwrap(), 1);
         // single redirection candidate
-        let user = User{ id: 3, start: 0.0, end: 10.0 };
+        let user = User {
+            id: 3,
+            start: 0.0,
+            end: 10.0,
+        };
         let res = container.redirect(user);
         assert_eq!(res.is_ok(), true);
         assert_eq!(res.unwrap(), 2);
-        container.stations[2].execute_event(&BaseStationEvent::AddUser, &container.cfg, &mut sim_state, &mut container.rng, &mut container.logger);
+        container.stations[2].execute_event(
+            &BaseStationEvent::AddUser,
+            &container.cfg,
+            &mut sim_state,
+            &mut container.rng,
+            &mut container.logger,
+        );
         // no redirection candidates
-        let user = User{ id: 3, start: 0.0, end: 10.0 };
+        let user = User {
+            id: 3,
+            start: 0.0,
+            end: 10.0,
+        };
         let res = container.redirect(user);
         assert_eq!(res.is_err(), true);
+    }
+
+    #[test]
+    fn single_sim() {
+        // test single simulation run
+        let mut container =
+            SimContainer::new_test(3, 10, true, PathBuf::from("tests/single_sim.log"));
+        container.cli.duration = 1.0 / 3600.0 * 10.0;
+        container.simulate();
+        let diff = Command::new("diff")
+            .args(["tests/single_sim.log", "tests/references/single_sim.log"])
+            .output()
+            .expect("Failed to diff results.");
+        match diff.status.code() {
+            Some(code) => {
+                if code != 0 {
+                    let _ = std::fs::write("tests/single_sim.log.diff", &diff.stdout);
+                    panic!(
+                        "error code != 0\n{}",
+                        String::from_utf8(diff.stdout).unwrap()
+                    );
+                }
+            }
+            None => panic!("Unable to unwrap error code"),
+        };
+        assert_eq!(diff.status.code().unwrap(), 0);
     }
 }

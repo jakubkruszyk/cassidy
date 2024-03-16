@@ -24,11 +24,31 @@ impl User {
 
 impl Display for User {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "User id: {}, process time: {}",
-            self.id,
-            (self.end - self.start)
-        )
+        write!(f, "User id: {}, end time: {:.3}", self.id, self.end)
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use rand::{rngs::StdRng, SeedableRng};
+
+    use crate::config::Config;
+
+    use super::User;
+
+    #[test]
+    fn test_rng() {
+        let cfg = Config::default();
+        let mut rng = StdRng::seed_from_u64(1);
+        for _ in 0..10000 {
+            let user = User::new(1, 0.0, &mut rng, &cfg);
+            assert!(
+                user.end >= cfg.process_time_min && user.end <= cfg.process_time_max,
+                "min = {} user.end = {} max = {}",
+                cfg.process_time_min,
+                user.end,
+                cfg.process_time_max,
+            );
+        }
     }
 }
