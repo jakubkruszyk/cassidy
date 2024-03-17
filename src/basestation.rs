@@ -9,8 +9,8 @@ use rand_distr::Distribution;
 pub enum BaseStationState {
     Active,
     Sleep,
-    PowerUp(f64),
-    PowerDown(f64),
+    PowerUp(f64),   // Station is during power-up process
+    PowerDown(f64), // Station is during power-down process
 }
 
 #[derive(Debug)]
@@ -22,11 +22,21 @@ pub enum BaseStationEvent {
 }
 
 #[derive(Debug)]
+pub struct BaseStationResult {
+    pub average_power: f64,
+    pub average_usage: f64,
+    pub average_sleep_time: f64,
+}
+
+#[derive(Debug)]
 pub struct BaseStation {
     pub id: usize,
     resources: BinaryHeap<User, FnComparator<fn(&User, &User) -> Ordering>>,
     pub next_user_add: f64,
     pub state: BaseStationState,
+    pub total_power: f64,
+    pub total_usage: f64,
+    pub sleep_time: f64,
 }
 
 impl BaseStation {
@@ -38,6 +48,9 @@ impl BaseStation {
             }),
             next_user_add: BaseStation::get_new_timestamp(lambda, rng),
             state: BaseStationState::Active,
+            total_power: 0.0,
+            total_usage: 0.0,
+            sleep_time: 0.0,
         }
     }
 
@@ -140,6 +153,7 @@ impl BaseStation {
                     &cfg,
                 );
                 self.state = BaseStationState::Active;
+                self.total_power += cfg.wakeup_power;
                 None
             }
             BaseStationEvent::ShutDown => {
@@ -149,6 +163,8 @@ impl BaseStation {
                     &cfg,
                 );
                 self.state = BaseStationState::Sleep;
+                // TODO: confirm this
+                self.total_power += cfg.wakeup_power;
                 None
             }
         }
@@ -172,6 +188,28 @@ impl BaseStation {
         }
         self.resources.push(user);
         Ok(())
+    }
+
+    pub fn accumulate_counters(&mut self, dt: f64, cfg: &Config) {
+        let dp = match self.state {
+            BaseStationState::Active => dt * cfg.active_power,
+            BaseStationState::Sleep => {
+                self.sleep_time += dt;
+                dt * cfg.sleep_power
+            }
+            BaseStationState::PowerUp(_) => 0.0,
+            BaseStationState::PowerDown(_) => 0.0,
+        };
+        self.total_power += dp;
+        self.total_usage += dt * self.get_usage(&cfg);
+    }
+
+    pub fn get_results(&self, total_time: f64) -> BaseStationResult {
+        BaseStationResult {
+            average_power: self.total_power / total_time,
+            average_usage: self.total_usage / total_time,
+            average_sleep_time: self.sleep_time / total_time,
+        }
     }
 }
 

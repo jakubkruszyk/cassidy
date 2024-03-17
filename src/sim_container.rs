@@ -4,6 +4,8 @@ use clap::Parser;
 use rand::prelude::*;
 use rand::SeedableRng;
 
+use crate::basestation::BaseStationEvent;
+use crate::basestation::BaseStationResult;
 use crate::logger::Logger;
 use crate::user::User;
 use crate::{
@@ -11,12 +13,14 @@ use crate::{
     config::{Cli, Config},
 };
 
+#[derive(Debug)]
 pub struct SimState {
     pub time: f64,
     pub next_user_id: usize,
     pub lambda: f64,
     pub lambda_update_time: f64,
     pub lambda_update_idx: usize,
+    pub all_users: usize,
     pub redirected_users: usize,
     pub dropped_users: usize,
 }
@@ -30,10 +34,19 @@ impl SimState {
             lambda: cfg.lambda * cfg.lambda_coefs[0].coef,
             lambda_update_time: cfg.lambda_coefs[0].time,
             lambda_update_idx: idx,
+            all_users: 0,
             redirected_users: 0,
             dropped_users: 0,
         }
     }
+}
+
+#[derive(Debug)]
+pub struct SimResults {
+    pub average_usage: f64,
+    pub average_power: f64,
+    pub avereage_drop_rate: f64,
+    pub stations: Vec<BaseStationResult>,
 }
 
 pub struct SimContainer {
@@ -79,7 +92,7 @@ impl SimContainer {
         })
     }
 
-    pub fn simulate(&mut self) {
+    pub fn simulate(&mut self) -> SimResults {
         let mut sim_state = SimState::new(&self.cfg);
         let end_time = self.cli.duration * 3600.0;
         while sim_state.time < end_time {
@@ -113,9 +126,19 @@ impl SimContainer {
             if next_event_time < sim_state.time {
                 panic!("Internal error: next event timestamp < current timestamp");
             }
+            let dt = next_event_time - sim_state.time;
             sim_state.time = next_event_time;
             if sim_state.time > end_time {
                 break;
+            }
+
+            // Update accumulators
+            for station in self.stations.iter_mut() {
+                station.accumulate_counters(dt, &self.cfg);
+            }
+            match next_event {
+                BaseStationEvent::AddUser => sim_state.all_users += 1,
+                _ => (),
             }
 
             // execute event
@@ -158,6 +181,23 @@ impl SimContainer {
             // check for potential power-up/down of stations
         }
         self.logger.flush();
+        // return results
+        let mut stations_results: Vec<BaseStationResult> = Vec::new();
+        let mut avg_usage = 0.0;
+        let mut avg_power = 0.0;
+        for station in self.stations.iter() {
+            let res = station.get_results(self.cli.duration);
+            avg_usage += res.average_usage;
+            avg_power += res.average_power;
+            stations_results.push(res);
+        }
+        SimResults {
+            average_usage: avg_usage / self.cfg.stations_count as f64,
+            avereage_drop_rate: (sim_state.dropped_users as f64) / (sim_state.all_users as f64)
+                * 100.0,
+            average_power: avg_power / self.cfg.stations_count as f64,
+            stations: Vec::new(),
+        }
     }
 
     fn redirect(&mut self, user: User) -> Result<usize, ()> {
@@ -172,6 +212,14 @@ impl SimContainer {
             .unwrap();
         redirect_station.redirect_here(&self.cfg, user)?;
         Ok(redirect_station.id)
+    }
+
+    pub fn run(&mut self) -> SimResults {
+        for _i in 0..self.cli.iterations {
+            // TODO: average of iteration results
+            let res = self.simulate();
+        }
+        todo!();
     }
 }
 
