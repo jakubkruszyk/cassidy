@@ -54,6 +54,15 @@ impl BaseStation {
         }
     }
 
+    pub fn clear(&mut self, lambda: f64, rng: &mut StdRng) {
+        self.next_user_add = BaseStation::get_new_timestamp(lambda, rng);
+        self.state = BaseStationState::Active;
+        self.total_usage = 0.0;
+        self.total_power = 0.0;
+        self.sleep_time = 0.0;
+        self.resources.clear();
+    }
+
     fn get_new_timestamp(lambda: f64, rng: &mut StdRng) -> f64 {
         rand_distr::Exp::new(lambda).unwrap().sample(rng)
     }
@@ -345,7 +354,6 @@ mod test {
         );
         assert_eq!(station.resources.len(), 1);
         let res = station.get_next_event();
-        println!("{}, {:?}", res.0, res.1);
         assert_eq!(res.0, 15.0);
         assert!(std::matches!(res.1, BaseStationEvent::AddUser));
         // test sleep state

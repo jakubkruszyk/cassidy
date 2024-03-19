@@ -1,4 +1,8 @@
-use std::{fs::File, io::Read, path::PathBuf};
+use std::{
+    fs::File,
+    io::{Read, Write},
+    path::PathBuf,
+};
 
 use clap::Parser;
 use serde::{Deserialize, Serialize};
@@ -24,6 +28,15 @@ pub struct Cli {
     /// Simulation iterations count
     #[arg(long, value_name = "u32")]
     pub iterations: u32,
+    /// Enable sleep state logic
+    #[arg(long)]
+    pub enable_sleep: bool,
+    /// Save default config
+    #[arg(long, value_name = "path")]
+    pub save_default_config: Option<PathBuf>,
+    /// Show partial results from all iterations
+    #[arg(long)]
+    pub show_partial_results: bool,
 }
 
 impl Cli {
@@ -121,10 +134,10 @@ impl Default for Config {
                     time: 6.0,
                 },
             ],
-            resources_count: 10,
+            resources_count: 273,
             sleep_threshold: 20,
             wakeup_threshold: 80,
-            stations_count: 273,
+            stations_count: 10,
             active_power: 200.0,
             sleep_power: 1.0,
             wakeup_power: 1000.0,
@@ -142,9 +155,15 @@ impl Config {
         if self.process_time_max < self.process_time_min {
             return Err("process_time_max must be greater than process_time_min".to_owned());
         }
+        if self.lambda < 0.0 {
+            return Err("lambda must be greater than 0".to_owned());
+        }
+        if self.lambda_coefs.len() == 0 {
+            return Err("lambda_coefs list must not be empty.".to_owned());
+        }
         for lp in self.lambda_coefs.iter() {
-            if lp.coef < 1.0 {
-                return Err("lambda must be greater than 1.0".to_owned());
+            if lp.coef < 0.0 {
+                return Err("lambda coefficient must be greater than 0".to_owned());
             }
             if lp.time < 0.0 {
                 return Err("lambda timestamp must be greater than 0".to_owned());
@@ -169,5 +188,14 @@ impl Config {
             return Err("wakeup_delay must be greater than 0".to_owned());
         }
         Ok(self)
+    }
+
+    pub fn save_deafult(path: PathBuf) -> std::io::Result<()> {
+        let cfg = Config::default();
+        let cfg_str =
+            toml::to_string(&cfg).expect("Internal error: Couldn't parse default config to toml.");
+        let mut file = File::create(&path)?;
+        file.write_all(cfg_str.as_bytes())?;
+        Ok(())
     }
 }

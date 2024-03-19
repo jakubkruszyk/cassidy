@@ -1,4 +1,4 @@
-use sim_container::SimContainer;
+use crate::sim_container::SimContainer;
 
 mod basestation;
 mod config;
@@ -11,5 +11,7 @@ fn main() {
         Ok(s) => s,
         Err(e) => panic!("{}", e),
     };
-    scene.simulate();
+    let res = scene.run();
+    println!("=================== Average simulation results ===================");
+    println!("{}", res.get_report());
 }

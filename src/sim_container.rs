@@ -1,8 +1,8 @@
-use std::path::PathBuf;
-
 use clap::Parser;
 use rand::prelude::*;
 use rand::SeedableRng;
+use std::iter::zip;
+use std::path::PathBuf;
 
 use crate::basestation::BaseStationEvent;
 use crate::basestation::BaseStationResult;
@@ -45,12 +45,60 @@ impl SimState {
 pub struct SimResults {
     pub average_usage: f64,
     pub average_power: f64,
-    pub avereage_drop_rate: f64,
+    pub average_drop_rate: f64,
     pub stations: Vec<BaseStationResult>,
 }
 
+impl SimResults {
+    pub fn new_zero(cfg: &Config) -> SimResults {
+        let mut res = SimResults {
+            average_usage: 0.0,
+            average_power: 0.0,
+            average_drop_rate: 0.0,
+            stations: Vec::new(),
+        };
+        for _ in 0..cfg.stations_count {
+            res.stations.push(BaseStationResult {
+                average_power: 0.0,
+                average_usage: 0.0,
+                average_sleep_time: 0.0,
+            })
+        }
+        res
+    }
+
+    fn pad(s: String, n: usize) -> String {
+        format!("{:^n$}", s)
+    }
+
+    pub fn get_report(&self) -> String {
+        let mut msg = format!(
+            "Simulation results:\n\
+            - average resource usage: {:.2} %\n\
+            - average power consumption: {:.2} W\n\
+            - average user drop rate: {:.2} %\n\
+            \n\
+            Stations results:\n\
+            id  | average power [W] | average usage [%] | average sleep time [%]\n\
+            ----+-------------------+-------------------+-----------------------\n",
+            self.average_usage, self.average_power, self.average_drop_rate
+        );
+        for (i, station) in self.stations.iter().enumerate() {
+            msg += (format!(
+                "{} | {} | {} | {}\n",
+                Self::pad(format!("{}", i), 3),
+                Self::pad(format!("{:.2}", station.average_power), 17),
+                Self::pad(format!("{:.2}", station.average_usage), 17),
+                Self::pad(format!("{:.2}", station.average_sleep_time), 21)
+            ))
+            .as_str();
+        }
+        msg
+    }
+}
+
 pub struct SimContainer {
-    cli: Cli,
+    pub cli: Cli,
     cfg: Config,
     logger: Logger,
     rng: StdRng,
@@ -80,7 +128,7 @@ impl SimContainer {
             None => StdRng::from_entropy(),
         };
         let mut stations: Vec<BaseStation> = Vec::with_capacity(cfg.stations_count);
-        for i in 0..cfg.resources_count {
+        for i in 0..cfg.stations_count {
             stations.push(BaseStation::new(i, &cfg, curr_lambda, &mut rng));
         }
         Ok(SimContainer {
@@ -92,9 +140,20 @@ impl SimContainer {
         })
     }
 
+    /// Clear stations' heaps and get new random add_next_user
+    pub fn clear(&mut self) {
+        for station in self.stations.iter_mut() {
+            let lambda = self.cfg.lambda * self.cfg.lambda_coefs[0].coef;
+            station.clear(lambda, &mut self.rng);
+        }
+    }
+
     pub fn simulate(&mut self) -> SimResults {
+        // initialize state
+        self.clear();
         let mut sim_state = SimState::new(&self.cfg);
         let end_time = self.cli.duration * 3600.0;
+        // simulation loop
         while sim_state.time < end_time {
             // update lambda
             if sim_state.time >= sim_state.lambda_update_time {
@@ -128,7 +187,13 @@ impl SimContainer {
             }
             let dt = next_event_time - sim_state.time;
             sim_state.time = next_event_time;
+
+            // Accumulate and exit early if next event exceeds simulation duration
             if sim_state.time > end_time {
+                let dt = end_time - sim_state.time;
+                for station in self.stations.iter_mut() {
+                    station.accumulate_counters(dt, &self.cfg);
+                }
                 break;
             }
 
@@ -179,6 +244,9 @@ impl SimContainer {
             }
 
             // check for potential power-up/down of stations
+            if self.cli.enable_sleep {
+                todo!()
+            }
         }
         self.logger.flush();
         // return results
@@ -186,17 +254,17 @@ impl SimContainer {
         let mut avg_usage = 0.0;
         let mut avg_power = 0.0;
         for station in self.stations.iter() {
-            let res = station.get_results(self.cli.duration);
+            let res = station.get_results(end_time);
             avg_usage += res.average_usage;
             avg_power += res.average_power;
             stations_results.push(res);
         }
         SimResults {
             average_usage: avg_usage / self.cfg.stations_count as f64,
-            avereage_drop_rate: (sim_state.dropped_users as f64) / (sim_state.all_users as f64)
+            average_drop_rate: (sim_state.dropped_users as f64) / (sim_state.all_users as f64)
                 * 100.0,
             average_power: avg_power / self.cfg.stations_count as f64,
-            stations: Vec::new(),
+            stations: stations_results,
         }
     }
 
@@ -215,11 +283,31 @@ impl SimContainer {
     }
 
     pub fn run(&mut self) -> SimResults {
-        for _i in 0..self.cli.iterations {
-            // TODO: average of iteration results
+        let mut sim_res = SimResults::new_zero(&self.cfg);
+        for i in 0..self.cli.iterations {
             let res = self.simulate();
+            if self.cli.show_partial_results {
+                println!("Partial result - iteration: {}", i);
+                println!("{}", res.get_report());
+            }
+            sim_res.average_usage += res.average_usage;
+            sim_res.average_power += res.average_power;
+            sim_res.average_drop_rate += res.average_drop_rate;
+            for (total, partial) in zip(sim_res.stations.iter_mut(), res.stations.iter()) {
+                total.average_power += partial.average_power;
+                total.average_usage += partial.average_usage;
+                total.average_sleep_time += partial.average_sleep_time;
+            }
         }
-        todo!();
+        sim_res.average_usage /= self.cli.iterations as f64;
+        sim_res.average_power /= self.cli.iterations as f64;
+        sim_res.average_drop_rate /= self.cli.iterations as f64;
+        for s in sim_res.stations.iter_mut() {
+            s.average_power /= self.cli.iterations as f64;
+            s.average_usage /= self.cli.iterations as f64;
+            s.average_sleep_time /= self.cli.iterations as f64;
+        }
+        sim_res
     }
 }
 
@@ -233,6 +321,9 @@ impl SimContainer {
             log_path: Some(log_path.clone()),
             duration: 1.0,
             iterations: 1,
+            enable_sleep: false,
+            save_default_config: None,
+            show_partial_results: false,
         };
         let mut cfg = cli.create_config().unwrap();
         cfg.stations_count = s;
@@ -260,7 +351,7 @@ mod test {
         sim_container::{SimContainer, SimState},
         user::User,
     };
-    use std::{path::PathBuf, process::Command};
+    use std::{io::Write, path::PathBuf, process::Command};
 
     #[test]
     fn redirect() {
@@ -339,7 +430,11 @@ mod test {
         let mut container =
             SimContainer::new_test(3, 10, true, PathBuf::from("tests/single_sim.log"));
         container.cli.duration = 1.0 / 3600.0 * 10.0;
-        container.simulate();
+        let res = container.simulate();
+        let mut file =
+            std::fs::File::create("tests/single_sim.report").expect("Couldn't create report file.");
+        file.write(res.get_report().as_bytes())
+            .expect("Couldn;t write report to file");
         let diff = Command::new("diff")
             .args(["tests/single_sim.log", "tests/references/single_sim.log"])
             .output()
