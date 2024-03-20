@@ -6,14 +6,13 @@ use rand::{self, rngs::StdRng, Rng};
 #[derive(Debug)]
 pub struct User {
     pub id: usize,
-    pub start: f64,
-    pub end: f64,
+    pub start: u64,
+    pub end: u64,
 }
 
 impl User {
-    pub fn new(id: usize, curr_time: f64, generator: &mut StdRng, cfg: &Config) -> User {
-        let delay = cfg.process_time_min
-            + generator.gen::<f64>() * (cfg.process_time_max - cfg.process_time_min);
+    pub fn new(id: usize, curr_time: u64, generator: &mut StdRng, cfg: &Config) -> User {
+        let delay: u64 = generator.gen_range(cfg.process_time_min..=cfg.process_time_max);
         User {
             id,
             start: curr_time,
@@ -24,7 +23,7 @@ impl User {
 
 impl Display for User {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "User id: {}, end time: {:.3}", self.id, self.end)
+        write!(f, "User id: {}, end time: {}", self.id, self.end,)
     }
 }
 
@@ -41,7 +40,7 @@ mod test {
         let cfg = Config::default();
         let mut rng = StdRng::seed_from_u64(1);
         for _ in 0..10000 {
-            let user = User::new(1, 0.0, &mut rng, &cfg);
+            let user = User::new(1, 0, &mut rng, &cfg);
             assert!(
                 user.end >= cfg.process_time_min && user.end <= cfg.process_time_max,
                 "min = {} user.end = {} max = {}",

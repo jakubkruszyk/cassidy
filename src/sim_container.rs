@@ -15,10 +15,10 @@ use crate::{
 
 #[derive(Debug)]
 pub struct SimState {
-    pub time: f64,
+    pub time: u64,
     pub next_user_id: usize,
     pub lambda: f64,
-    pub lambda_update_time: f64,
+    pub lambda_update_time: u64,
     pub lambda_update_idx: usize,
     pub all_users: usize,
     pub redirected_users: usize,
@@ -29,10 +29,10 @@ impl SimState {
     pub fn new(cfg: &Config) -> SimState {
         let idx: usize = if cfg.lambda_coefs.len() > 1 { 1 } else { 0 };
         SimState {
-            time: 0.0,
+            time: 0,
             next_user_id: 0,
             lambda: cfg.lambda * cfg.lambda_coefs[0].coef,
-            lambda_update_time: cfg.lambda_coefs[0].time,
+            lambda_update_time: (cfg.lambda_coefs[0].time * 3600.0 * 1000.0) as u64,
             lambda_update_idx: idx,
             all_users: 0,
             redirected_users: 0,
@@ -119,9 +119,9 @@ impl SimContainer {
         };
         let logger = Logger::new(cli.log, &cfg, log_path)?;
         let curr_lambda = cfg.lambda * cfg.lambda_coefs[0].coef;
-        // conver lambda timestamps from hours to seconds
+        // convert lambda timestamps from hours to miliseconds
         for p in cfg.lambda_coefs.iter_mut() {
-            p.time *= 3600.0;
+            p.time *= 3600.0 * 1000.0;
         }
         let mut rng = match cli.seed {
             Some(seed) => StdRng::seed_from_u64(seed),
@@ -142,8 +142,8 @@ impl SimContainer {
 
     /// Clear stations' heaps and get new random add_next_user
     pub fn clear(&mut self) {
+        let lambda = self.cfg.lambda * self.cfg.lambda_coefs[0].coef;
         for station in self.stations.iter_mut() {
-            let lambda = self.cfg.lambda * self.cfg.lambda_coefs[0].coef;
             station.clear(lambda, &mut self.rng);
         }
     }
@@ -152,14 +152,14 @@ impl SimContainer {
         // initialize state
         self.clear();
         let mut sim_state = SimState::new(&self.cfg);
-        let end_time = self.cli.duration * 3600.0;
+        let end_time = (self.cli.duration * 3600.0 * 1000.0) as u64;
         // simulation loop
         while sim_state.time < end_time {
             // update lambda
             if sim_state.time >= sim_state.lambda_update_time {
                 let l_next = &self.cfg.lambda_coefs[sim_state.lambda_update_idx];
                 sim_state.lambda = self.cfg.lambda * l_next.coef;
-                sim_state.lambda_update_time = sim_state.time + l_next.time;
+                sim_state.lambda_update_time = sim_state.time + l_next.time as u64;
                 sim_state.lambda_update_idx =
                     (sim_state.lambda_update_idx + 1) % self.cfg.lambda_coefs.len();
                 self.logger.log(
@@ -185,17 +185,16 @@ impl SimContainer {
             if next_event_time < sim_state.time {
                 panic!("Internal error: next event timestamp < current timestamp");
             }
-            let dt = next_event_time - sim_state.time;
-            sim_state.time = next_event_time;
-
             // Accumulate and exit early if next event exceeds simulation duration
-            if sim_state.time > end_time {
+            if next_event_time > end_time {
                 let dt = end_time - sim_state.time;
                 for station in self.stations.iter_mut() {
                     station.accumulate_counters(dt, &self.cfg);
                 }
                 break;
             }
+            let dt = next_event_time - sim_state.time;
+            sim_state.time = next_event_time;
 
             // Update accumulators
             for station in self.stations.iter_mut() {
@@ -383,8 +382,8 @@ mod test {
         // 2 redirection candidates with different usage
         let user = User {
             id: 1,
-            start: 0.0,
-            end: 10.0,
+            start: 0,
+            end: 10,
         };
         let res = container.redirect(user);
         assert_eq!(res.is_ok(), true);
@@ -392,8 +391,8 @@ mod test {
         // 2 redirection candidates with same usage
         let user = User {
             id: 2,
-            start: 0.0,
-            end: 10.0,
+            start: 0,
+            end: 10,
         };
         let res = container.redirect(user);
         assert_eq!(res.is_ok(), true);
@@ -401,8 +400,8 @@ mod test {
         // single redirection candidate
         let user = User {
             id: 3,
-            start: 0.0,
-            end: 10.0,
+            start: 0,
+            end: 10,
         };
         let res = container.redirect(user);
         assert_eq!(res.is_ok(), true);
@@ -417,8 +416,8 @@ mod test {
         // no redirection candidates
         let user = User {
             id: 3,
-            start: 0.0,
-            end: 10.0,
+            start: 0,
+            end: 10,
         };
         let res = container.redirect(user);
         assert_eq!(res.is_err(), true);

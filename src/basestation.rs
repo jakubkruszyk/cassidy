@@ -9,8 +9,8 @@ use rand_distr::Distribution;
 pub enum BaseStationState {
     Active,
     Sleep,
-    PowerUp(f64),   // Station is during power-up process
-    PowerDown(f64), // Station is during power-down process
+    PowerUp(u64),   // Station is during power-up process
+    PowerDown(u64), // Station is during power-down process
 }
 
 #[derive(Debug)]
@@ -32,11 +32,11 @@ pub struct BaseStationResult {
 pub struct BaseStation {
     pub id: usize,
     resources: BinaryHeap<User, FnComparator<fn(&User, &User) -> Ordering>>,
-    pub next_user_add: f64,
+    pub next_user_add: u64,
     pub state: BaseStationState,
     pub total_power: f64,
     pub total_usage: f64,
-    pub sleep_time: f64,
+    pub sleep_time: u64,
 }
 
 impl BaseStation {
@@ -50,7 +50,7 @@ impl BaseStation {
             state: BaseStationState::Active,
             total_power: 0.0,
             total_usage: 0.0,
-            sleep_time: 0.0,
+            sleep_time: 0,
         }
     }
 
@@ -59,15 +59,16 @@ impl BaseStation {
         self.state = BaseStationState::Active;
         self.total_usage = 0.0;
         self.total_power = 0.0;
-        self.sleep_time = 0.0;
+        self.sleep_time = 0;
         self.resources.clear();
     }
 
-    fn get_new_timestamp(lambda: f64, rng: &mut StdRng) -> f64 {
-        rand_distr::Exp::new(lambda).unwrap().sample(rng)
+    fn get_new_timestamp(lambda: f64, rng: &mut StdRng) -> u64 {
+        // converted from seconds to miliseconds
+        (rand_distr::Exp::new(lambda).unwrap().sample(rng) * 1000.0) as u64
     }
 
-    pub fn get_next_event(&self) -> (f64, BaseStationEvent) {
+    pub fn get_next_event(&self) -> (u64, BaseStationEvent) {
         match self.state {
             BaseStationState::Active => match self.resources.peek() {
                 Some(user) => {
@@ -119,7 +120,7 @@ impl BaseStation {
                             logger.log(
                                 format!(
                                     "UserCreated\tStation id: {}\t{}\tnext user: {}",
-                                    self.id, &user, &self.next_user_add
+                                    self.id, &user, &self.next_user_add,
                                 ),
                                 sim_state.time,
                                 &cfg,
@@ -199,25 +200,25 @@ impl BaseStation {
         Ok(())
     }
 
-    pub fn accumulate_counters(&mut self, dt: f64, cfg: &Config) {
+    pub fn accumulate_counters(&mut self, dt: u64, cfg: &Config) {
         let dp = match self.state {
-            BaseStationState::Active => dt * cfg.active_power,
+            BaseStationState::Active => dt as f64 * cfg.active_power,
             BaseStationState::Sleep => {
                 self.sleep_time += dt;
-                dt * cfg.sleep_power
+                dt as f64 * cfg.sleep_power
             }
             BaseStationState::PowerUp(_) => 0.0,
             BaseStationState::PowerDown(_) => 0.0,
         };
         self.total_power += dp;
-        self.total_usage += dt * self.get_usage(&cfg);
+        self.total_usage += dt as f64 * self.get_usage(&cfg);
     }
 
-    pub fn get_results(&self, total_time: f64) -> BaseStationResult {
+    pub fn get_results(&self, total_time: u64) -> BaseStationResult {
         BaseStationResult {
-            average_power: self.total_power / total_time,
-            average_usage: self.total_usage / total_time,
-            average_sleep_time: self.sleep_time / total_time,
+            average_power: self.total_power / total_time as f64,
+            average_usage: self.total_usage / total_time as f64,
+            average_sleep_time: self.sleep_time as f64 / total_time as f64,
         }
     }
 }
@@ -247,7 +248,7 @@ mod test {
         let mut station = BaseStation::new(1, &cfg, 1.0, &mut rng);
         let mut sim_state = SimState::new(&cfg);
         sim_state.lambda = 1.0;
-        sim_state.time = 0.0;
+        sim_state.time = 0;
         for _ in 0..10 {
             let res = station.execute_event(&event, &cfg, &mut sim_state, &mut rng, &mut logger);
             assert!(res.is_none() == true);
@@ -298,7 +299,7 @@ mod test {
         assert!(res.is_some() == true);
         assert!(station.resources.len() == 0);
         // test add (redirect) during power-uo/down state
-        station.state = BaseStationState::PowerUp(10.0);
+        station.state = BaseStationState::PowerUp(10);
         let res = station.execute_event(
             &BaseStationEvent::AddUser,
             &cfg,
@@ -308,7 +309,7 @@ mod test {
         );
         assert!(res.is_some() == true);
         assert!(station.resources.len() == 0);
-        station.state = BaseStationState::PowerDown(10.0);
+        station.state = BaseStationState::PowerDown(10);
         let res = station.execute_event(
             &BaseStationEvent::AddUser,
             &cfg,
@@ -332,18 +333,18 @@ mod test {
         station.state = BaseStationState::Active;
         station.force_add_user(User {
             id: 1,
-            start: 0.0,
-            end: 10.0,
+            start: 0,
+            end: 10,
         });
         station.force_add_user(User {
             id: 2,
-            start: 0.0,
-            end: 20.0,
+            start: 0,
+            end: 20,
         });
         assert!(station.resources.len() == 2);
-        station.next_user_add = 15.0;
+        station.next_user_add = 15;
         let res = station.get_next_event();
-        assert_eq!(res.0, 10.0);
+        assert_eq!(res.0, 10);
         assert!(std::matches!(res.1, BaseStationEvent::ReleaseUser));
         station.execute_event(
             &BaseStationEvent::ReleaseUser,
@@ -354,37 +355,37 @@ mod test {
         );
         assert_eq!(station.resources.len(), 1);
         let res = station.get_next_event();
-        assert_eq!(res.0, 15.0);
+        assert_eq!(res.0, 15);
         assert!(std::matches!(res.1, BaseStationEvent::AddUser));
         // test sleep state
         station.force_add_user(User {
             id: 1,
-            start: 0.0,
-            end: 10.0,
+            start: 0,
+            end: 10,
         });
         station.state = BaseStationState::Sleep;
         let res = station.get_next_event();
-        assert_eq!(res.0, 15.0);
+        assert_eq!(res.0, 15);
         assert!(std::matches!(res.1, BaseStationEvent::AddUser));
 
         // test power-up/down state
-        station.state = BaseStationState::PowerUp(25.0);
+        station.state = BaseStationState::PowerUp(25);
         let res = station.get_next_event();
-        assert_eq!(res.0, 15.0);
+        assert_eq!(res.0, 15);
         assert!(std::matches!(res.1, BaseStationEvent::AddUser));
-        station.next_user_add = 30.0;
+        station.next_user_add = 30;
         let res = station.get_next_event();
-        assert_eq!(res.0, 25.0);
+        assert_eq!(res.0, 25);
         assert!(std::matches!(res.1, BaseStationEvent::PowerUp));
 
-        station.state = BaseStationState::PowerDown(25.0);
-        station.next_user_add = 15.0;
+        station.state = BaseStationState::PowerDown(25);
+        station.next_user_add = 15;
         let res = station.get_next_event();
-        assert_eq!(res.0, 15.0);
+        assert_eq!(res.0, 15);
         assert!(std::matches!(res.1, BaseStationEvent::AddUser));
-        station.next_user_add = 30.0;
+        station.next_user_add = 30;
         let res = station.get_next_event();
-        assert_eq!(res.0, 25.0);
+        assert_eq!(res.0, 25);
         assert!(std::matches!(res.1, BaseStationEvent::ShutDown));
     }
 

@@ -29,9 +29,9 @@ impl Logger {
             })
         }
     }
-    pub fn log(&mut self, str: String, time: f64, cfg: &Config) {
+    pub fn log(&mut self, str: String, time: u64, cfg: &Config) {
         if let Some(file) = &mut self.file {
-            let msg = format!("{:.3}\t{}\n", time, str);
+            let msg = format!("{}\t{}\n", time, str);
             self.buffer.push(msg);
             if self.buffer.len() >= cfg.log_buffer {
                 for msg in self.buffer.iter() {
@@ -65,9 +65,9 @@ mod test {
         cfg.log_buffer = 5;
         let mut logger = Logger::new(true, &cfg, "test_logger.log").unwrap();
         for i in 0..5 {
-            logger.log(format!("Line: {}", i), 0.0, &cfg);
+            logger.log(format!("Line: {}", i), 0, &cfg);
         }
-        logger.log("Line: 6".to_string(), 0.0, &cfg);
+        logger.log("Line: 6".to_string(), 0, &cfg);
         std::mem::drop(logger);
         for (i, line) in std::fs::read_to_string("test_logger.log")
             .unwrap()
@@ -84,7 +84,7 @@ mod test {
     fn flush() {
         let cfg = Config::default();
         let mut logger = Logger::new(true, &cfg, "test_flush.log").unwrap();
-        logger.log("Line: 1".to_string(), 0.0, &cfg);
+        logger.log("Line: 1".to_string(), 0, &cfg);
         logger.flush();
         std::mem::drop(logger);
         let content = std::fs::read_to_string("test_flush.log").unwrap();

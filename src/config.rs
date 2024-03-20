@@ -22,7 +22,7 @@ pub struct Cli {
     /// Path where log file will be saved to
     #[arg(long, value_name = "path")]
     pub log_path: Option<PathBuf>,
-    /// Time in hours, simulation will be run for
+    /// Time in hours, simulation will be run for. Maximum precision is 1ms
     #[arg(long, value_name = "time")]
     pub duration: f64,
     /// Simulation iterations count
@@ -95,9 +95,9 @@ pub struct LambdaPoint {
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(default)]
 pub struct Config {
-    pub process_time_max: f64, // [s]
-    pub process_time_min: f64, // [s]
-    pub lambda: f64,
+    pub process_time_max: u64, // [ms]
+    pub process_time_min: u64, // [ms]
+    pub lambda: f64,           // [users per second]
     pub lambda_coefs: Vec<LambdaPoint>,
     pub resources_count: usize,
     pub sleep_threshold: u32,  // [0-100]%
@@ -106,15 +106,15 @@ pub struct Config {
     pub active_power: f64, // [W]
     pub sleep_power: f64,  // [W]
     pub wakeup_power: f64, // [W]
-    pub wakeup_delay: f64, // [s]
+    pub wakeup_delay: u64, // [ms]
     pub log_buffer: usize,
 }
 
 impl Default for Config {
     fn default() -> Self {
         Self {
-            process_time_max: 15.0,
-            process_time_min: 0.0,
+            process_time_max: 15000,
+            process_time_min: 1000,
             lambda: 1.0,
             lambda_coefs: vec![
                 LambdaPoint {
@@ -141,7 +141,7 @@ impl Default for Config {
             active_power: 200.0,
             sleep_power: 1.0,
             wakeup_power: 1000.0,
-            wakeup_delay: 0.05,
+            wakeup_delay: 50,
             log_buffer: 1000,
         }
     }
@@ -149,12 +149,6 @@ impl Default for Config {
 
 impl Config {
     pub fn validate(self) -> Result<Config, String> {
-        if self.process_time_min < 0.0 {
-            return Err("process_time_min must be greater than 0".to_owned());
-        }
-        if self.process_time_max < self.process_time_min {
-            return Err("process_time_max must be greater than process_time_min".to_owned());
-        }
         if self.lambda < 0.0 {
             return Err("lambda must be greater than 0".to_owned());
         }
@@ -183,9 +177,6 @@ impl Config {
         }
         if self.wakeup_power < 0.0 {
             return Err("wakeup_power must be greater than 0".to_owned());
-        }
-        if self.wakeup_delay < 0.0 {
-            return Err("wakeup_delay must be greater than 0".to_owned());
         }
         Ok(self)
     }
