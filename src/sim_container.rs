@@ -1,6 +1,7 @@
 use clap::Parser;
 use rand::prelude::*;
 use rand::SeedableRng;
+use rayon::prelude::*;
 use std::iter::zip;
 use std::path::PathBuf;
 
@@ -67,6 +68,27 @@ impl SimResults {
         res
     }
 
+    pub fn add(&mut self, x: &SimResults) {
+        self.average_usage += x.average_usage;
+        self.average_power += x.average_power;
+        self.average_drop_rate += x.average_drop_rate;
+        for (s, partial) in zip(self.stations.iter_mut(), x.stations.iter()) {
+            s.average_power += partial.average_power;
+            s.average_usage += partial.average_usage;
+            s.average_sleep_time += partial.average_sleep_time;
+        }
+    }
+    pub fn div(&mut self, x: f64) {
+        self.average_usage /= x;
+        self.average_power /= x;
+        self.average_drop_rate /= x;
+        for s in self.stations.iter_mut() {
+            s.average_power /= x;
+            s.average_usage /= x;
+            s.average_sleep_time /= x;
+        }
+    }
+
     fn pad(s: String, n: usize) -> String {
         format!("{:^n$}", s)
     }
@@ -100,59 +122,35 @@ impl SimResults {
 pub struct SimContainer {
     pub cli: Cli,
     cfg: Config,
-    logger: Logger,
-    rng: StdRng,
-    stations: Vec<BaseStation>,
 }
 
 impl SimContainer {
     pub fn new() -> Result<SimContainer, String> {
         let cli = Cli::parse().validate()?;
         let mut cfg = cli.create_config()?.validate()?;
-        let log_path = if cli.log {
-            match &cli.log_path {
-                Some(p) => p.to_str().unwrap(),
-                None => "sim.log",
-            }
-        } else {
-            "sim.log"
-        };
-        let logger = Logger::new(cli.log, &cfg, log_path)?;
-        let curr_lambda = cfg.lambda * cfg.lambda_coefs[0].coef;
         // convert lambda timestamps from hours to miliseconds
         for p in cfg.lambda_coefs.iter_mut() {
             p.time *= 3600.0 * 1000.0;
         }
-        let mut rng = match cli.seed {
-            Some(seed) => StdRng::seed_from_u64(seed),
+        Ok(SimContainer { cli, cfg })
+    }
+
+    pub fn simulate(&self, iter: u32, log_path: PathBuf) -> SimResults {
+        // initialize state
+        let mut sim_state = SimState::new(&self.cfg);
+        let mut rng = match &self.cli.seed {
+            Some(seed) => StdRng::seed_from_u64(seed + iter as u64),
             None => StdRng::from_entropy(),
         };
-        let mut stations: Vec<BaseStation> = Vec::with_capacity(cfg.stations_count);
-        for i in 0..cfg.stations_count {
-            stations.push(BaseStation::new(i, &cfg, curr_lambda, &mut rng));
+        let mut logger = Logger::new(self.cli.log, &self.cfg, log_path)
+            .expect("Internal error: failed to create log file");
+        // create BaseStations
+        let mut stations: Vec<BaseStation> = Vec::with_capacity(self.cfg.stations_count);
+        for i in 0..self.cfg.stations_count {
+            stations.push(BaseStation::new(i, &self.cfg, sim_state.lambda, &mut rng));
         }
-        Ok(SimContainer {
-            cli,
-            cfg,
-            logger,
-            rng,
-            stations,
-        })
-    }
-
-    /// Clear stations' heaps and get new random add_next_user
-    pub fn clear(&mut self) {
-        let lambda = self.cfg.lambda * self.cfg.lambda_coefs[0].coef;
-        for station in self.stations.iter_mut() {
-            station.clear(lambda, &mut self.rng);
-        }
-    }
-
-    pub fn simulate(&mut self) -> SimResults {
-        // initialize state
-        self.clear();
-        let mut sim_state = SimState::new(&self.cfg);
         let end_time = (self.cli.duration * 3600.0 * 1000.0) as u64;
+
         // simulation loop
         while sim_state.time < end_time {
             // update lambda
@@ -162,17 +160,19 @@ impl SimContainer {
                 sim_state.lambda_update_time = sim_state.time + l_next.time as u64;
                 sim_state.lambda_update_idx =
                     (sim_state.lambda_update_idx + 1) % self.cfg.lambda_coefs.len();
-                self.logger.log(
-                    format!("Lambda updated to: {}", sim_state.lambda),
-                    sim_state.time,
-                    &self.cfg,
-                );
+                if self.cli.log {
+                    logger.log(
+                        format!("Lambda updated to: {}", sim_state.lambda),
+                        sim_state.time,
+                        &self.cfg,
+                    );
+                }
             }
 
             // get next event
             let mut event_station: usize = 0;
-            let (mut next_event_time, mut next_event) = self.stations[0].get_next_event();
-            for (i, station) in self.stations[1..].iter().enumerate() {
+            let (mut next_event_time, mut next_event) = stations[0].get_next_event();
+            for (i, station) in stations[1..].iter().enumerate() {
                 let (time, event) = station.get_next_event();
                 if time < next_event_time {
                     next_event_time = time;
@@ -188,7 +188,7 @@ impl SimContainer {
             // Accumulate and exit early if next event exceeds simulation duration
             if next_event_time > end_time {
                 let dt = end_time - sim_state.time;
-                for station in self.stations.iter_mut() {
+                for station in stations.iter_mut() {
                     station.accumulate_counters(dt, &self.cfg);
                 }
                 break;
@@ -197,7 +197,7 @@ impl SimContainer {
             sim_state.time = next_event_time;
 
             // Update accumulators
-            for station in self.stations.iter_mut() {
+            for station in stations.iter_mut() {
                 station.accumulate_counters(dt, &self.cfg);
             }
             match next_event {
@@ -206,38 +206,42 @@ impl SimContainer {
             }
 
             // execute event
-            let res = self.stations[event_station].execute_event(
+            let res = stations[event_station].execute_event(
                 &next_event,
                 &self.cfg,
                 &mut sim_state,
-                &mut self.rng,
-                &mut self.logger,
+                &mut rng,
+                &mut logger,
             );
 
             // handle possible redirections
             if let Some(user) = res {
                 let redirected_user_id = user.id;
-                let res = self.redirect(user);
+                let res = self.redirect(user, &mut stations);
                 match res {
                     Ok(to_station_id) => {
                         sim_state.redirected_users += 1;
-                        let from_station_id = self.stations[event_station].id;
-                        self.logger.log(
-                            format!(
-                                "Redirect\tUser id: {} from Station id: {} to Station id: {}",
-                                redirected_user_id, from_station_id, to_station_id
-                            ),
-                            sim_state.time,
-                            &self.cfg,
-                        )
+                        let from_station_id = stations[event_station].id;
+                        if self.cli.log {
+                            logger.log(
+                                format!(
+                                    "Redirect\tUser id: {} from Station id: {} to Station id: {}",
+                                    redirected_user_id, from_station_id, to_station_id
+                                ),
+                                sim_state.time,
+                                &self.cfg,
+                            )
+                        }
                     }
                     Err(_) => {
                         sim_state.dropped_users += 1;
-                        self.logger.log(
-                            format!("User id: {} dropped", redirected_user_id),
-                            sim_state.time,
-                            &self.cfg,
-                        )
+                        if self.cli.log {
+                            logger.log(
+                                format!("User id: {} dropped", redirected_user_id),
+                                sim_state.time,
+                                &self.cfg,
+                            )
+                        }
                     }
                 };
             }
@@ -247,12 +251,12 @@ impl SimContainer {
                 todo!()
             }
         }
-        self.logger.flush();
+        logger.flush();
         // return results
         let mut stations_results: Vec<BaseStationResult> = Vec::new();
         let mut avg_usage = 0.0;
         let mut avg_power = 0.0;
-        for station in self.stations.iter() {
+        for station in stations.iter() {
             let res = station.get_results(end_time);
             avg_usage += res.average_usage;
             avg_power += res.average_power;
@@ -267,9 +271,8 @@ impl SimContainer {
         }
     }
 
-    fn redirect(&mut self, user: User) -> Result<usize, ()> {
-        let redirect_station = self
-            .stations
+    fn redirect(&self, user: User, stations: &mut Vec<BaseStation>) -> Result<usize, ()> {
+        let redirect_station = stations
             .iter_mut()
             .min_by(|x, y| {
                 x.get_usage(&self.cfg)
@@ -281,43 +284,50 @@ impl SimContainer {
         Ok(redirect_station.id)
     }
 
+    fn get_log_path(&self) -> PathBuf {
+        if self.cli.log {
+            match &self.cli.log_path {
+                Some(p) => p.to_owned(),
+                None => PathBuf::from("sim.log"),
+            }
+        } else {
+            PathBuf::from("sim.log")
+        }
+    }
+
     pub fn run(&mut self) -> SimResults {
         let mut sim_res = SimResults::new_zero(&self.cfg);
-        for i in 0..self.cli.iterations {
-            let res = self.simulate();
-            if self.cli.show_partial_results {
-                println!("Partial result - iteration: {}", i);
-                println!("{}", res.get_report());
-            }
-            sim_res.average_usage += res.average_usage;
-            sim_res.average_power += res.average_power;
-            sim_res.average_drop_rate += res.average_drop_rate;
-            for (total, partial) in zip(sim_res.stations.iter_mut(), res.stations.iter()) {
-                total.average_power += partial.average_power;
-                total.average_usage += partial.average_usage;
-                total.average_sleep_time += partial.average_sleep_time;
-            }
+        let path = self.get_log_path();
+        let partial_sim_res: Vec<SimResults> = (0..self.cli.iterations)
+            .into_par_iter()
+            .map(|i| {
+                let mut log_path = path.clone();
+                log_path.push(i.to_string());
+                let res = self.simulate(i, log_path);
+                if self.cli.show_partial_results {
+                    println!("Partial result - iteration: {}", i);
+                    println!("{}", res.get_report());
+                }
+                res
+            })
+            .collect();
+        // average results
+        for partial in partial_sim_res.iter() {
+            sim_res.add(partial);
         }
-        sim_res.average_usage /= self.cli.iterations as f64;
-        sim_res.average_power /= self.cli.iterations as f64;
-        sim_res.average_drop_rate /= self.cli.iterations as f64;
-        for s in sim_res.stations.iter_mut() {
-            s.average_power /= self.cli.iterations as f64;
-            s.average_usage /= self.cli.iterations as f64;
-            s.average_sleep_time /= self.cli.iterations as f64;
-        }
+        sim_res.div(self.cli.iterations as f64);
         sim_res
     }
 }
 
 // test only functions
 impl SimContainer {
-    pub fn new_test(s: usize, r: usize, log: bool, log_path: PathBuf) -> SimContainer {
+    pub fn new_test(s: usize, r: usize) -> SimContainer {
         let cli = Cli {
             with_config: None,
             seed: Some(1),
-            log,
-            log_path: Some(log_path.clone()),
+            log: false,
+            log_path: None,
             duration: 1.0,
             iterations: 1,
             enable_sleep: false,
@@ -327,26 +337,17 @@ impl SimContainer {
         let mut cfg = cli.create_config().unwrap();
         cfg.stations_count = s;
         cfg.resources_count = r;
-        let logger = Logger::new(log, &cfg, log_path.to_str().unwrap()).unwrap();
-        let mut rng = StdRng::seed_from_u64(cli.seed.unwrap());
-        let mut stations = Vec::new();
-        for i in 0..s {
-            stations.push(BaseStation::new(i, &cfg, 1.0, &mut rng));
-        }
-        SimContainer {
-            cli,
-            cfg,
-            logger,
-            rng,
-            stations,
-        }
+        SimContainer { cli, cfg }
     }
 }
 
 #[cfg(test)]
 mod test {
+    use rand::{rngs::StdRng, SeedableRng};
+
     use crate::{
-        basestation::BaseStationEvent,
+        basestation::{BaseStation, BaseStationEvent},
+        logger::Logger,
         sim_container::{SimContainer, SimState},
         user::User,
     };
@@ -355,29 +356,35 @@ mod test {
     #[test]
     fn redirect() {
         // test user redirection
-        let mut container =
-            SimContainer::new_test(3, 2, false, PathBuf::from("tests/redirect.log"));
+        let container = SimContainer::new_test(3, 2);
         let mut sim_state = SimState::new(&container.cfg);
-        container.stations[0].execute_event(
+        let mut stations: Vec<BaseStation> = Vec::new();
+        let mut rng = StdRng::seed_from_u64(1);
+        let mut logger =
+            Logger::new(false, &container.cfg, PathBuf::from("tests/redirect.log")).unwrap();
+        for i in 0..container.cfg.stations_count {
+            stations.push(BaseStation::new(i, &container.cfg, 1.0, &mut rng));
+        }
+        stations[0].execute_event(
             &BaseStationEvent::AddUser,
             &container.cfg,
             &mut sim_state,
-            &mut container.rng,
-            &mut container.logger,
+            &mut rng,
+            &mut logger,
         );
-        container.stations[0].execute_event(
+        stations[0].execute_event(
             &BaseStationEvent::AddUser,
             &container.cfg,
             &mut sim_state,
-            &mut container.rng,
-            &mut container.logger,
+            &mut rng,
+            &mut logger,
         );
-        container.stations[2].execute_event(
+        stations[2].execute_event(
             &BaseStationEvent::AddUser,
             &container.cfg,
             &mut sim_state,
-            &mut container.rng,
-            &mut container.logger,
+            &mut rng,
+            &mut logger,
         );
         // 2 redirection candidates with different usage
         let user = User {
@@ -385,7 +392,7 @@ mod test {
             start: 0,
             end: 10,
         };
-        let res = container.redirect(user);
+        let res = container.redirect(user, &mut stations);
         assert_eq!(res.is_ok(), true);
         assert_eq!(res.unwrap(), 1);
         // 2 redirection candidates with same usage
@@ -394,7 +401,7 @@ mod test {
             start: 0,
             end: 10,
         };
-        let res = container.redirect(user);
+        let res = container.redirect(user, &mut stations);
         assert_eq!(res.is_ok(), true);
         assert_eq!(res.unwrap(), 1);
         // single redirection candidate
@@ -403,15 +410,15 @@ mod test {
             start: 0,
             end: 10,
         };
-        let res = container.redirect(user);
+        let res = container.redirect(user, &mut stations);
         assert_eq!(res.is_ok(), true);
         assert_eq!(res.unwrap(), 2);
-        container.stations[2].execute_event(
+        stations[2].execute_event(
             &BaseStationEvent::AddUser,
             &container.cfg,
             &mut sim_state,
-            &mut container.rng,
-            &mut container.logger,
+            &mut rng,
+            &mut logger,
         );
         // no redirection candidates
         let user = User {
@@ -419,17 +426,16 @@ mod test {
             start: 0,
             end: 10,
         };
-        let res = container.redirect(user);
+        let res = container.redirect(user, &mut stations);
         assert_eq!(res.is_err(), true);
     }
 
     #[test]
     fn single_sim() {
         // test single simulation run
-        let mut container =
-            SimContainer::new_test(3, 10, true, PathBuf::from("tests/single_sim.log"));
+        let mut container = SimContainer::new_test(3, 10);
         container.cli.duration = 1.0 / 3600.0 * 10.0;
-        let res = container.simulate();
+        let res = container.simulate(0, PathBuf::from("tests/single_sim.log"));
         let mut file =
             std::fs::File::create("tests/single_sim.report").expect("Couldn't create report file.");
         file.write(res.get_report().as_bytes())

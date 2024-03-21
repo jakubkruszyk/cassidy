@@ -82,6 +82,9 @@ impl Cli {
                 ));
             }
         }
+        if self.iterations == 0 {
+            return Err("Iterations must be greater than 0".to_owned());
+        }
         Ok(self)
     }
 }
@@ -113,7 +116,7 @@ pub struct Config {
 impl Default for Config {
     fn default() -> Self {
         Self {
-            process_time_max: 15000,
+            process_time_max: 30000,
             process_time_min: 1000,
             lambda: 1.0,
             lambda_coefs: vec![

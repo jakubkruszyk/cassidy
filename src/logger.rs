@@ -12,9 +12,8 @@ pub struct Logger {
 }
 
 impl Logger {
-    pub fn new(enable: bool, cfg: &Config, path: &str) -> Result<Logger, String> {
+    pub fn new(enable: bool, cfg: &Config, path: PathBuf) -> Result<Logger, String> {
         if enable {
-            let path = PathBuf::from(path);
             if path.exists() {
                 let _ = remove_file(&path);
             }
@@ -54,7 +53,7 @@ impl Logger {
 
 #[cfg(test)]
 mod test {
-    use std::fs::remove_file;
+    use std::{fs::remove_file, path::PathBuf};
 
     use super::Logger;
     use crate::config::Config;
@@ -63,7 +62,7 @@ mod test {
     fn logger() {
         let mut cfg = Config::default();
         cfg.log_buffer = 5;
-        let mut logger = Logger::new(true, &cfg, "test_logger.log").unwrap();
+        let mut logger = Logger::new(true, &cfg, PathBuf::from("test_logger.log")).unwrap();
         for i in 0..5 {
             logger.log(format!("Line: {}", i), 0, &cfg);
         }
@@ -75,7 +74,7 @@ mod test {
             .enumerate()
         {
             assert!(i < 6);
-            assert_eq!(line, format!("0.000\tLine: {i}").as_str());
+            assert_eq!(line, format!("0\tLine: {i}").as_str());
         }
         let _ = remove_file("test_logger.log");
     }
@@ -83,12 +82,12 @@ mod test {
     #[test]
     fn flush() {
         let cfg = Config::default();
-        let mut logger = Logger::new(true, &cfg, "test_flush.log").unwrap();
+        let mut logger = Logger::new(true, &cfg, PathBuf::from("test_flush.log")).unwrap();
         logger.log("Line: 1".to_string(), 0, &cfg);
         logger.flush();
         std::mem::drop(logger);
         let content = std::fs::read_to_string("test_flush.log").unwrap();
-        assert_eq!("0.000\tLine: 1\n".to_string(), content);
+        assert_eq!("0\tLine: 1\n".to_string(), content);
         let _ = remove_file("test_flush.log");
     }
 }

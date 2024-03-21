@@ -235,7 +235,7 @@ mod test {
     use super::{BaseStation, BaseStationEvent, BaseStationState};
     use crate::{config::Config, logger::Logger, sim_container::SimState, user::User};
     use rand::{rngs::StdRng, SeedableRng};
-    use std::process::Command;
+    use std::{path::PathBuf, process::Command};
 
     #[test]
     fn add_release_user() {
@@ -243,7 +243,8 @@ mod test {
         let event = BaseStationEvent::AddUser;
         let mut cfg = Config::default();
         cfg.resources_count = 10;
-        let mut logger = Logger::new(false, &cfg, "test_add_release_user.log").unwrap();
+        let mut logger =
+            Logger::new(false, &cfg, PathBuf::from("test_add_release_user.log")).unwrap();
         let mut rng = StdRng::seed_from_u64(1);
         let mut station = BaseStation::new(1, &cfg, 1.0, &mut rng);
         let mut sim_state = SimState::new(&cfg);
@@ -270,7 +271,8 @@ mod test {
         // Test release from empty heap
         let mut cfg = Config::default();
         cfg.resources_count = 10;
-        let mut logger = Logger::new(false, &cfg, "test_release_user_panic.log").unwrap();
+        let mut logger =
+            Logger::new(false, &cfg, PathBuf::from("test_release_user_panic.log")).unwrap();
         let mut rng = StdRng::seed_from_u64(1);
         let mut station = BaseStation::new(1, &cfg, 1.0, &mut rng);
         let mut sim_state = SimState::new(&cfg);
@@ -283,7 +285,8 @@ mod test {
         // Adding (redirect) from states different from Active
         let mut cfg = Config::default();
         cfg.resources_count = 10;
-        let mut logger = Logger::new(false, &cfg, "test_add_user_all_states.log").unwrap();
+        let mut logger =
+            Logger::new(false, &cfg, PathBuf::from("test_add_user_all_states.log")).unwrap();
         let mut rng = StdRng::seed_from_u64(1);
         let mut sim_state = SimState::new(&cfg);
         let mut station = BaseStation::new(1, &cfg, 1.0, &mut rng);
@@ -325,7 +328,8 @@ mod test {
     fn get_event() {
         let mut cfg = Config::default();
         cfg.resources_count = 10;
-        let mut logger = Logger::new(false, &cfg, "test_add_user_all_states.log").unwrap();
+        let mut logger =
+            Logger::new(false, &cfg, PathBuf::from("test_add_user_all_states.log")).unwrap();
         let mut rng = StdRng::seed_from_u64(1);
         let mut sim_state = SimState::new(&cfg);
         let mut station = BaseStation::new(1, &cfg, 1.0, &mut rng);
@@ -393,7 +397,8 @@ mod test {
     fn test_add_release_order() {
         let mut cfg = Config::default();
         cfg.resources_count = 10;
-        let mut logger = Logger::new(true, &cfg, "tests/add_release_order.log").unwrap();
+        let mut logger =
+            Logger::new(true, &cfg, PathBuf::from("tests/add_release_order.log")).unwrap();
         let mut rng = StdRng::seed_from_u64(1);
         let mut sim_state = SimState::new(&cfg);
         let mut station = BaseStation::new(1, &cfg, 1.0, &mut rng);
