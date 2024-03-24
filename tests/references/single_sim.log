@@ -1,0 +1,135 @@
+569451	UserAdd	Station id: 2	User id: 0, end time: 8951452	next user: 830748
+830748	UserAdd	Station id: 2	User id: 1, end time: 13100375	next user: 6222179
+3437956	UserAdd	Station id: 1	User id: 2, end time: 19527924	next user: 4677668
+4084989	UserAdd	Station id: 0	User id: 3, end time: 10941299	next user: 4447543
+4447543	UserAdd	Station id: 0	User id: 4, end time: 32580341	next user: 4527502
+4527502	UserAdd	Station id: 0	User id: 5, end time: 11161844	next user: 5620115
+4677668	UserAdd	Station id: 1	User id: 6, end time: 31554061	next user: 5219735
+5219735	UserAdd	Station id: 1	User id: 7, end time: 7465961	next user: 6197137
+5620115	UserAdd	Station id: 0	User id: 8, end time: 14299594	next user: 12097745
+6197137	UserAdd	Station id: 1	User id: 9, end time: 25543940	next user: 18473318
+6222179	UserAdd	Station id: 2	User id: 10, end time: 14835619	next user: 6461067
+6461067	UserAdd	Station id: 2	User id: 11, end time: 25325128	next user: 7803394
+7465961	UserRelease	Station id: 1	User id: 7, end time: 7465961
+7803394	UserAdd	Station id: 2	User id: 12, end time: 22546716	next user: 8994867
+8951452	UserRelease	Station id: 2	User id: 0, end time: 8951452
+8994867	UserAdd	Station id: 2	User id: 13, end time: 37722573	next user: 10009189
+10009189	UserAdd	Station id: 2	User id: 14, end time: 12492641	next user: 11003934
+10941299	UserRelease	Station id: 0	User id: 3, end time: 10941299
+11003934	UserAdd	Station id: 2	User id: 15, end time: 17544415	next user: 17034435
+11161844	UserRelease	Station id: 0	User id: 5, end time: 11161844
+12097745	UserAdd	Station id: 0	User id: 16, end time: 36047089	next user: 13170839
+12492641	UserRelease	Station id: 2	User id: 14, end time: 12492641
+13100375	UserRelease	Station id: 2	User id: 1, end time: 13100375
+13170839	UserAdd	Station id: 0	User id: 17, end time: 34192635	next user: 14459706
+14299594	UserRelease	Station id: 0	User id: 8, end time: 14299594
+14459706	UserAdd	Station id: 0	User id: 18, end time: 39704152	next user: 15258046
+14835619	UserRelease	Station id: 2	User id: 10, end time: 14835619
+15258046	UserAdd	Station id: 0	User id: 19, end time: 42014961	next user: 15746460
+15746460	UserAdd	Station id: 0	User id: 20, end time: 18346092	next user: 19430389
+17034435	UserAdd	Station id: 2	User id: 21, end time: 38737275	next user: 18849587
+17544415	UserRelease	Station id: 2	User id: 15, end time: 17544415
+18346092	UserRelease	Station id: 0	User id: 20, end time: 18346092
+18473318	UserAdd	Station id: 1	User id: 22, end time: 47100769	next user: 19879443
+18849587	UserAdd	Station id: 2	User id: 23, end time: 38485908	next user: 18863703
+18863703	UserAdd	Station id: 2	User id: 24, end time: 24666285	next user: 19886818
+19430389	UserAdd	Station id: 0	User id: 25, end time: 43091635	next user: 21584314
+19527924	UserRelease	Station id: 1	User id: 2, end time: 19527924
+19879443	UserAdd	Station id: 1	User id: 26, end time: 30173159	next user: 21205168
+19886818	UserAdd	Station id: 2	User id: 27, end time: 25891144	next user: 21948398
+21205168	UserAdd	Station id: 1	User id: 28, end time: 44268155	next user: 22442294
+21584314	UserAdd	Station id: 0	User id: 29, end time: 29937243	next user: 30819926
+21948398	UserAdd	Station id: 2	User id: 30, end time: 25247875	next user: 22065872
+22065872	UserAdd	Station id: 2	User id: 31, end time: 40409244	next user: 23506616
+22442294	UserAdd	Station id: 1	User id: 32, end time: 31036982	next user: 28329745
+22546716	UserRelease	Station id: 2	User id: 12, end time: 22546716
+23506616	UserAdd	Station id: 2	User id: 33, end time: 45689889	next user: 27233361
+24666285	UserRelease	Station id: 2	User id: 24, end time: 24666285
+25247875	UserRelease	Station id: 2	User id: 30, end time: 25247875
+25325128	UserRelease	Station id: 2	User id: 11, end time: 25325128
+25543940	UserRelease	Station id: 1	User id: 9, end time: 25543940
+25891144	UserRelease	Station id: 2	User id: 27, end time: 25891144
+27233361	UserAdd	Station id: 2	User id: 34, end time: 44969550	next user: 30643361
+28329745	UserAdd	Station id: 1	User id: 35, end time: 32617192	next user: 31165195
+29937243	UserRelease	Station id: 0	User id: 29, end time: 29937243
+30173159	UserRelease	Station id: 1	User id: 26, end time: 30173159
+30643361	UserAdd	Station id: 2	User id: 36, end time: 55750342	next user: 33892696
+30819926	UserAdd	Station id: 0	User id: 37, end time: 35314784	next user: 32051584
+31036982	UserRelease	Station id: 1	User id: 32, end time: 31036982
+31165195	UserAdd	Station id: 1	User id: 38, end time: 54972766	next user: 31227095
+31227095	UserAdd	Station id: 1	User id: 39, end time: 39210530	next user: 31485235
+31485235	UserAdd	Station id: 1	User id: 40, end time: 61268167	next user: 34070487
+31554061	UserRelease	Station id: 1	User id: 6, end time: 31554061
+32051584	UserAdd	Station id: 0	User id: 41, end time: 53024766	next user: 35273376
+32580341	UserRelease	Station id: 0	User id: 4, end time: 32580341
+32617192	UserRelease	Station id: 1	User id: 35, end time: 32617192
+33892696	UserAdd	Station id: 2	User id: 42, end time: 58444221	next user: 33940269
+33940269	UserAdd	Station id: 2	User id: 43, end time: 61475978	next user: 38625284
+34070487	UserAdd	Station id: 1	User id: 44, end time: 54419195	next user: 35585386
+34192635	UserRelease	Station id: 0	User id: 17, end time: 34192635
+35273376	UserAdd	Station id: 0	User id: 45, end time: 36470652	next user: 35989475
+35314784	UserRelease	Station id: 0	User id: 37, end time: 35314784
+35585386	UserAdd	Station id: 1	User id: 46, end time: 65345641	next user: 38750717
+35989475	UserAdd	Station id: 0	User id: 47, end time: 45762702	next user: 37313660
+36047089	UserRelease	Station id: 0	User id: 16, end time: 36047089
+36470652	UserRelease	Station id: 0	User id: 45, end time: 36470652
+37313660	UserAdd	Station id: 0	User id: 48, end time: 45779893	next user: 37372886
+37372886	UserAdd	Station id: 0	User id: 49, end time: 46571802	next user: 44617656
+37722573	UserRelease	Station id: 2	User id: 13, end time: 37722573
+38485908	UserRelease	Station id: 2	User id: 23, end time: 38485908
+38625284	UserAdd	Station id: 2	User id: 50, end time: 47516192	next user: 39250924
+38737275	UserRelease	Station id: 2	User id: 21, end time: 38737275
+38750717	UserAdd	Station id: 1	User id: 51, end time: 61587110	next user: 40789632
+39210530	UserRelease	Station id: 1	User id: 39, end time: 39210530
+39250924	UserAdd	Station id: 2	User id: 52, end time: 60649393	next user: 39655660
+39655660	UserAdd	Station id: 2	User id: 53, end time: 46874639	next user: 45655878
+39704152	UserRelease	Station id: 0	User id: 18, end time: 39704152
+40409244	UserRelease	Station id: 2	User id: 31, end time: 40409244
+40789632	UserAdd	Station id: 1	User id: 54, end time: 58567761	next user: 44032455
+42014961	UserRelease	Station id: 0	User id: 19, end time: 42014961
+43091635	UserRelease	Station id: 0	User id: 25, end time: 43091635
+44032455	UserAdd	Station id: 1	User id: 55, end time: 63090480	next user: 44115794
+44115794	UserAdd	Station id: 1	User id: 56, end time: 62701904	next user: 49011398
+44268155	UserRelease	Station id: 1	User id: 28, end time: 44268155
+44617656	UserAdd	Station id: 0	User id: 57, end time: 70987333	next user: 47528307
+44969550	UserRelease	Station id: 2	User id: 34, end time: 44969550
+45655878	UserAdd	Station id: 2	User id: 58, end time: 52668342	next user: 46892978
+45689889	UserRelease	Station id: 2	User id: 33, end time: 45689889
+45762702	UserRelease	Station id: 0	User id: 47, end time: 45762702
+45779893	UserRelease	Station id: 0	User id: 48, end time: 45779893
+46571802	UserRelease	Station id: 0	User id: 49, end time: 46571802
+46874639	UserRelease	Station id: 2	User id: 53, end time: 46874639
+46892978	UserAdd	Station id: 2	User id: 59, end time: 62984758	next user: 47904271
+47100769	UserRelease	Station id: 1	User id: 22, end time: 47100769
+47516192	UserRelease	Station id: 2	User id: 50, end time: 47516192
+47528307	UserAdd	Station id: 0	User id: 60, end time: 64042570	next user: 48174729
+47904271	UserAdd	Station id: 2	User id: 61, end time: 67905057	next user: 51327733
+48174729	UserAdd	Station id: 0	User id: 62, end time: 69748940	next user: 50464061
+49011398	UserAdd	Station id: 1	User id: 63, end time: 62540964	next user: 51104702
+50464061	UserAdd	Station id: 0	User id: 64, end time: 56624151	next user: 51281446
+51104702	UserAdd	Station id: 1	User id: 65, end time: 76173220	next user: 53401439
+51281446	UserAdd	Station id: 0	User id: 66, end time: 54078644	next user: 53143517
+51327733	UserAdd	Station id: 2	User id: 67, end time: 78864565	next user: 53933408
+52668342	UserRelease	Station id: 2	User id: 58, end time: 52668342
+53024766	UserRelease	Station id: 0	User id: 41, end time: 53024766
+53143517	UserAdd	Station id: 0	User id: 68, end time: 75454257	next user: 57233074
+53401439	UserCreated	Station id: 1	User id: 69, end time: 67038682	next user: 55751993
+53401439	Redirect	User id: 69 from Station id: 1 to Station id: 0
+53933408	UserAdd	Station id: 2	User id: 70, end time: 75431377	next user: 54326825
+54078644	UserRelease	Station id: 0	User id: 66, end time: 54078644
+54326825	UserAdd	Station id: 2	User id: 71, end time: 55695863	next user: 57580627
+54419195	UserRelease	Station id: 1	User id: 44, end time: 54419195
+54972766	UserRelease	Station id: 1	User id: 38, end time: 54972766
+55695863	UserRelease	Station id: 2	User id: 71, end time: 55695863
+55750342	UserRelease	Station id: 2	User id: 36, end time: 55750342
+55751993	UserAdd	Station id: 1	User id: 72, end time: 81145175	next user: 62474143
+56624151	UserRelease	Station id: 0	User id: 64, end time: 56624151
+57233074	UserAdd	Station id: 0	User id: 73, end time: 65567281	next user: 58306295
+57580627	UserAdd	Station id: 2	User id: 74, end time: 84577423	next user: 58011389
+58011389	UserAdd	Station id: 2	User id: 75, end time: 66434521	next user: 59035669
+58306295	UserAdd	Station id: 0	User id: 76, end time: 78086667	next user: 58434270
+58434270	UserAdd	Station id: 0	User id: 77, end time: 62663595	next user: 60225382
+58444221	UserRelease	Station id: 2	User id: 42, end time: 58444221
+58567761	UserRelease	Station id: 1	User id: 54, end time: 58567761
+59035669	UserAdd	Station id: 2	User id: 78, end time: 84207083	next user: 59418140
+59418140	UserAdd	Station id: 2	User id: 79, end time: 76172281	next user: 60202726

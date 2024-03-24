@@ -1,0 +1,28 @@
+process_time_max = 15000
+process_time_min = 1000
+lambda = 70.0
+resources_count = 273
+sleep_threshold = 20
+wakeup_threshold = 80
+stations_count = 10
+active_power = 200.0
+sleep_power = 1.0
+wakeup_power = 1000.0
+wakeup_delay = 50
+log_buffer = 10000
+
+[[lambda_coefs]]
+time = 8.0
+coef = 0.5
+
+[[lambda_coefs]]
+time = 6.0
+coef = 0.75
+
+[[lambda_coefs]]
+time = 4.0
+coef = 1.0
+
+[[lambda_coefs]]
+time = 6.0
+coef = 0.75

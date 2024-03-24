@@ -64,8 +64,8 @@ impl BaseStation {
     }
 
     fn get_new_timestamp(lambda: f64, rng: &mut StdRng) -> u64 {
-        // converted from seconds to miliseconds
-        (rand_distr::Exp::new(lambda).unwrap().sample(rng) * 1000.0) as u64
+        // converted from seconds to microseconds
+        (rand_distr::Exp::new(lambda).unwrap().sample(rng) * 1000_000.0) as u64
     }
 
     pub fn get_next_event(&self) -> (u64, BaseStationEvent) {
@@ -235,7 +235,8 @@ mod test {
     use super::{BaseStation, BaseStationEvent, BaseStationState};
     use crate::{config::Config, logger::Logger, sim_container::SimState, user::User};
     use rand::{rngs::StdRng, SeedableRng};
-    use std::{path::PathBuf, process::Command};
+    use rand_distr::Distribution;
+    use std::{fmt::format, io::Write, path::PathBuf, process::Command};
 
     #[test]
     fn add_release_user() {
@@ -446,5 +447,18 @@ mod test {
             None => panic!("Unable to unwrap error code"),
         };
         assert_eq!(diff.status.code().unwrap(), 0);
+    }
+
+    // #[test]
+    fn generate_lambda() {
+        let mut rng = StdRng::seed_from_u64(1);
+        let mut file = std::fs::File::create("tests/lambda_values.csv").unwrap();
+        for lambda in [1.0, 2.0, 5.0, 10.0, 20.0, 50.0, 100.0] {
+            for _ in 0..1000 {
+                let x = rand_distr::Exp::new(lambda).unwrap().sample(&mut rng) * 1000_000.0;
+                let _ = file.write(format!("{},", x).as_bytes());
+            }
+            let _ = file.write("\n".as_bytes());
+        }
     }
 }

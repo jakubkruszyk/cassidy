@@ -1,0 +1,20 @@
+0	UserAdd	Station id: 1	User id: 0, end time: 13411269	next user: 3437956
+0	UserAdd	Station id: 1	User id: 1, end time: 8382001	next user: 261297
+0	UserAdd	Station id: 1	User id: 2, end time: 12269627	next user: 5391431
+0	UserAdd	Station id: 1	User id: 3, end time: 16089968	next user: 1239712
+0	UserAdd	Station id: 1	User id: 4, end time: 6856310	next user: 362554
+0	UserAdd	Station id: 1	User id: 5, end time: 28132798	next user: 79959
+0	UserAdd	Station id: 1	User id: 6, end time: 6634342	next user: 1092613
+0	UserAdd	Station id: 1	User id: 7, end time: 26876393	next user: 542067
+0	UserAdd	Station id: 1	User id: 8, end time: 2246226	next user: 977402
+0	UserAdd	Station id: 1	User id: 9, end time: 8679479	next user: 6477630
+0	UserRelease	Station id: 1	User id: 8, end time: 2246226
+0	UserRelease	Station id: 1	User id: 6, end time: 6634342
+0	UserRelease	Station id: 1	User id: 4, end time: 6856310
+0	UserRelease	Station id: 1	User id: 1, end time: 8382001
+0	UserRelease	Station id: 1	User id: 9, end time: 8679479
+0	UserRelease	Station id: 1	User id: 2, end time: 12269627
+0	UserRelease	Station id: 1	User id: 0, end time: 13411269
+0	UserRelease	Station id: 1	User id: 3, end time: 16089968
+0	UserRelease	Station id: 1	User id: 7, end time: 26876393
+0	UserRelease	Station id: 1	User id: 5, end time: 28132798

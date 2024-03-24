@@ -33,7 +33,7 @@ impl SimState {
             time: 0,
             next_user_id: 0,
             lambda: cfg.lambda * cfg.lambda_coefs[0].coef,
-            lambda_update_time: (cfg.lambda_coefs[0].time * 3600.0 * 1000.0) as u64,
+            lambda_update_time: (cfg.lambda_coefs[0].time * 3600.0 * 1000_000.0) as u64,
             lambda_update_idx: idx,
             all_users: 0,
             redirected_users: 0,
@@ -47,6 +47,7 @@ pub struct SimResults {
     pub average_usage: f64,
     pub average_power: f64,
     pub average_drop_rate: f64,
+    pub total_users: usize,
     pub stations: Vec<BaseStationResult>,
 }
 
@@ -56,6 +57,7 @@ impl SimResults {
             average_usage: 0.0,
             average_power: 0.0,
             average_drop_rate: 0.0,
+            total_users: 0,
             stations: Vec::new(),
         };
         for _ in 0..cfg.stations_count {
@@ -72,6 +74,7 @@ impl SimResults {
         self.average_usage += x.average_usage;
         self.average_power += x.average_power;
         self.average_drop_rate += x.average_drop_rate;
+        self.total_users += x.total_users;
         for (s, partial) in zip(self.stations.iter_mut(), x.stations.iter()) {
             s.average_power += partial.average_power;
             s.average_usage += partial.average_usage;
@@ -82,6 +85,7 @@ impl SimResults {
         self.average_usage /= x;
         self.average_power /= x;
         self.average_drop_rate /= x;
+        self.total_users = (self.total_users as f64 / x) as usize;
         for s in self.stations.iter_mut() {
             s.average_power /= x;
             s.average_usage /= x;
@@ -96,6 +100,7 @@ impl SimResults {
     pub fn get_report(&self) -> String {
         let mut msg = format!(
             "Simulation results:\n\
+            - processed users: {} \n\
             - average resource usage: {:.2} %\n\
             - average power consumption: {:.2} W\n\
             - average user drop rate: {:.2} %\n\
@@ -103,7 +108,7 @@ impl SimResults {
             Stations results:\n\
             id  | average power [W] | average usage [%] | average sleep time [%]\n\
             ----+-------------------+-------------------+-----------------------\n",
-            self.average_usage, self.average_power, self.average_drop_rate
+            self.total_users, self.average_usage, self.average_power, self.average_drop_rate
         );
         for (i, station) in self.stations.iter().enumerate() {
             msg += (format!(
@@ -128,9 +133,9 @@ impl SimContainer {
     pub fn new() -> Result<SimContainer, String> {
         let cli = Cli::parse().validate()?;
         let mut cfg = cli.create_config()?.validate()?;
-        // convert lambda timestamps from hours to miliseconds
+        // convert lambda timestamps from hours to microseconds
         for p in cfg.lambda_coefs.iter_mut() {
-            p.time *= 3600.0 * 1000.0;
+            p.time *= 3600.0 * 1000_000.0;
         }
         Ok(SimContainer { cli, cfg })
     }
@@ -149,7 +154,8 @@ impl SimContainer {
         for i in 0..self.cfg.stations_count {
             stations.push(BaseStation::new(i, &self.cfg, sim_state.lambda, &mut rng));
         }
-        let end_time = (self.cli.duration * 3600.0 * 1000.0) as u64;
+        // convert end time from hours to microseconds
+        let end_time = (self.cli.duration * 3600.0 * 1000_000.0) as u64;
 
         // simulation loop
         while sim_state.time < end_time {
@@ -267,6 +273,7 @@ impl SimContainer {
             average_drop_rate: (sim_state.dropped_users as f64) / (sim_state.all_users as f64)
                 * 100.0,
             average_power: avg_power / self.cfg.stations_count as f64,
+            total_users: sim_state.all_users,
             stations: stations_results,
         }
     }
@@ -434,7 +441,8 @@ mod test {
     fn single_sim() {
         // test single simulation run
         let mut container = SimContainer::new_test(3, 10);
-        container.cli.duration = 1.0 / 3600.0 * 10.0;
+        container.cli.duration = 1.0 / 3600.0 * 60.0;
+        container.cli.log = true;
         let res = container.simulate(0, PathBuf::from("tests/single_sim.log"));
         let mut file =
             std::fs::File::create("tests/single_sim.report").expect("Couldn't create report file.");

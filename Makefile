@@ -1,5 +1,5 @@
 single:
-	./target/debug/cassidy --duration 1 --iterations 1 --seed 1
+	./target/debug/cassidy --with-config ./tests/references/default_config.toml --duration 24 --iterations 1 --seed 1
 
-multi_iter:
-	./target/debug/cassidy --duration 1 --iterations 10 --seed 1
+iter:
+	./target/debug/cassidy --with-config ./tests/references/default_config.toml --duration 24 --iterations 10 --seed 1 --show-partial-results
