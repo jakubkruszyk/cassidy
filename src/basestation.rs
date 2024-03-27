@@ -54,46 +54,42 @@ impl BaseStation {
         }
     }
 
-    pub fn clear(&mut self, lambda: f64, rng: &mut StdRng) {
-        self.next_user_add = BaseStation::get_new_timestamp(lambda, rng);
-        self.state = BaseStationState::Active;
-        self.total_usage = 0.0;
-        self.total_power = 0.0;
-        self.sleep_time = 0;
-        self.resources.clear();
-    }
-
+    /// Returns random timestamp based on exponetial distribution.
     fn get_new_timestamp(lambda: f64, rng: &mut StdRng) -> u64 {
         // converted from seconds to microseconds
         (rand_distr::Exp::new(lambda).unwrap().sample(rng) * 1000_000.0) as u64
     }
 
     pub fn get_next_event(&self) -> (u64, BaseStationEvent) {
-        match self.state {
-            BaseStationState::Active => match self.resources.peek() {
-                Some(user) => {
-                    if user.end < self.next_user_add {
-                        (user.end, BaseStationEvent::ReleaseUser)
-                    } else {
-                        (self.next_user_add, BaseStationEvent::AddUser)
-                    }
-                }
-                None => (self.next_user_add, BaseStationEvent::AddUser),
-            },
-            BaseStationState::Sleep => (self.next_user_add, BaseStationEvent::AddUser),
-            BaseStationState::PowerUp(timestamp) => {
-                //
-                if timestamp < self.next_user_add {
-                    (timestamp, BaseStationEvent::PowerUp)
+        // get the smallest timestamp and according event type from user events
+        let user_min = match self.resources.peek() {
+            Some(user) => {
+                if user.end < self.next_user_add {
+                    (user.end, BaseStationEvent::ReleaseUser)
                 } else {
                     (self.next_user_add, BaseStationEvent::AddUser)
                 }
             }
+            None => (self.next_user_add, BaseStationEvent::AddUser),
+        };
+        // Return event with smallest timestamp
+        match self.state {
+            // Station has the same logic for Active and Sleep states because
+            // when in Sleep state station still needs to process users, that are
+            // already in the heap
+            BaseStationState::Active | BaseStationState::Sleep => user_min,
+            BaseStationState::PowerUp(timestamp) => {
+                if timestamp < user_min.0 {
+                    (timestamp, BaseStationEvent::PowerUp)
+                } else {
+                    user_min
+                }
+            }
             BaseStationState::PowerDown(timestamp) => {
-                if timestamp < self.next_user_add {
+                if timestamp < user_min.0 {
                     (timestamp, BaseStationEvent::ShutDown)
                 } else {
-                    (self.next_user_add, BaseStationEvent::AddUser)
+                    user_min
                 }
             }
         }
@@ -105,43 +101,12 @@ impl BaseStation {
         cfg: &Config,
         sim_state: &mut SimState,
         rng: &mut StdRng,
+        use_logger: bool,
         logger: &mut Logger,
     ) -> Option<User> {
         match event {
             BaseStationEvent::AddUser => {
-                self.next_user_add =
-                    sim_state.time + BaseStation::get_new_timestamp(sim_state.lambda, rng);
-                let user = User::new(sim_state.next_user_id, sim_state.time, rng, cfg);
-                sim_state.next_user_id += 1;
-                match self.state {
-                    BaseStationState::Active => {
-                        if self.resources.len() >= cfg.resources_count {
-                            // All resources are being used. Return user for redirect
-                            logger.log(
-                                format!(
-                                    "UserCreated\tStation id: {}\t{}\tnext user: {}",
-                                    self.id, &user, &self.next_user_add,
-                                ),
-                                sim_state.time,
-                                &cfg,
-                            );
-                            return Some(user);
-                        }
-                        logger.log(
-                            format!(
-                                "UserAdd\tStation id: {}\t{}\tnext user: {}",
-                                self.id, &user, &self.next_user_add
-                            ),
-                            sim_state.time,
-                            &cfg,
-                        );
-                        self.resources.push(user);
-                        None
-                    }
-                    BaseStationState::Sleep
-                    | BaseStationState::PowerUp(_)
-                    | BaseStationState::PowerDown(_) => Some(user),
-                }
+                self.add_user_routine(cfg, rng, sim_state, use_logger, logger)
             }
             BaseStationEvent::ReleaseUser => {
                 // pop all finished users
@@ -149,29 +114,35 @@ impl BaseStation {
                     panic!("Internal error: Tried to release user from empty heap.");
                 }
                 let user = self.resources.pop().unwrap();
-                logger.log(
-                    format!("UserRelease\tStation id: {}\t{}", self.id, &user),
-                    sim_state.time,
-                    &cfg,
-                );
+                if use_logger {
+                    logger.log(
+                        format!("UserRelease\tStation id: {}\t{}", self.id, &user),
+                        sim_state.time,
+                        &cfg,
+                    );
+                }
                 None
             }
             BaseStationEvent::PowerUp => {
-                logger.log(
-                    format!("StateChange\tStation id: {}\tActive", self.id),
-                    sim_state.time,
-                    &cfg,
-                );
+                if use_logger {
+                    logger.log(
+                        format!("StateChange\tStation id: {}\tActive", self.id),
+                        sim_state.time,
+                        &cfg,
+                    );
+                }
                 self.state = BaseStationState::Active;
                 self.total_power += cfg.wakeup_power;
                 None
             }
             BaseStationEvent::ShutDown => {
-                logger.log(
-                    format!("StateChange\tStation id: {}\tSleep", self.id),
-                    sim_state.time,
-                    &cfg,
-                );
+                if use_logger {
+                    logger.log(
+                        format!("StateChange\tStation id: {}\tSleep", self.id),
+                        sim_state.time,
+                        &cfg,
+                    );
+                }
                 self.state = BaseStationState::Sleep;
                 // TODO: confirm this
                 self.total_power += cfg.wakeup_power;
@@ -180,18 +151,57 @@ impl BaseStation {
         }
     }
 
-    pub fn pop_all_users(&mut self) -> Vec<User> {
-        let mut users: Vec<User> = Vec::with_capacity(self.resources.len());
-        while self.resources.len() > 0 {
-            users.push(self.resources.pop().unwrap());
+    fn add_user_routine(
+        &mut self,
+        cfg: &Config,
+        rng: &mut StdRng,
+        sim_state: &mut SimState,
+        use_logger: bool,
+        logger: &mut Logger,
+    ) -> Option<User> {
+        self.next_user_add = sim_state.time + BaseStation::get_new_timestamp(sim_state.lambda, rng);
+        let user = User::new(sim_state.next_user_id, sim_state.time, rng, cfg);
+        sim_state.next_user_id += 1;
+        match self.state {
+            BaseStationState::Active => {
+                if self.resources.len() >= cfg.resources_count {
+                    // All resources are being used. Return user for redirect
+                    if use_logger {
+                        logger.log(
+                            format!(
+                                "UserCreated\tStation id: {}\t{}\tnext user: {}",
+                                self.id, &user, &self.next_user_add,
+                            ),
+                            sim_state.time,
+                            &cfg,
+                        );
+                    }
+                    return Some(user);
+                }
+                logger.log(
+                    format!(
+                        "UserAdd\tStation id: {}\t{}\tnext user: {}",
+                        self.id, &user, &self.next_user_add
+                    ),
+                    sim_state.time,
+                    &cfg,
+                );
+                self.resources.push(user);
+                None
+            }
+            BaseStationState::Sleep
+            | BaseStationState::PowerUp(_)
+            | BaseStationState::PowerDown(_) => Some(user),
         }
-        users
     }
 
+    /// Returns heap's usage as percentage
     pub fn get_usage(&self, cfg: &Config) -> f64 {
         (self.resources.len() as f64) / (cfg.resources_count as f64) * 100.0
     }
 
+    /// Pushes given user into inner heap.
+    /// If there is not enough space, user is discarded.
     pub fn redirect_here(&mut self, cfg: &Config, user: User) -> Result<(), ()> {
         if self.resources.len() >= cfg.resources_count {
             return Err(());
@@ -225,6 +235,7 @@ impl BaseStation {
 
 // Methods for testing only
 impl BaseStation {
+    #[allow(dead_code)]
     fn force_add_user(&mut self, user: User) {
         self.resources.push(user);
     }
@@ -236,7 +247,7 @@ mod test {
     use crate::{config::Config, logger::Logger, sim_container::SimState, user::User};
     use rand::{rngs::StdRng, SeedableRng};
     use rand_distr::Distribution;
-    use std::{fmt::format, io::Write, path::PathBuf, process::Command};
+    use std::{io::Write, path::PathBuf, process::Command};
 
     #[test]
     fn add_release_user() {
@@ -252,15 +263,17 @@ mod test {
         sim_state.lambda = 1.0;
         sim_state.time = 0;
         for _ in 0..10 {
-            let res = station.execute_event(&event, &cfg, &mut sim_state, &mut rng, &mut logger);
+            let res =
+                station.execute_event(&event, &cfg, &mut sim_state, &mut rng, false, &mut logger);
             assert!(res.is_none() == true);
         }
-        let res = station.execute_event(&event, &cfg, &mut sim_state, &mut rng, &mut logger);
+        let res = station.execute_event(&event, &cfg, &mut sim_state, &mut rng, false, &mut logger);
         assert!(res.is_some() == true);
         // Test releasing all users and  return type - should not panic
         let event = BaseStationEvent::ReleaseUser;
         for _ in 0..10 {
-            let res = station.execute_event(&event, &cfg, &mut sim_state, &mut rng, &mut logger);
+            let res =
+                station.execute_event(&event, &cfg, &mut sim_state, &mut rng, false, &mut logger);
             assert!(res.is_none() == true);
         }
         logger.flush();
@@ -278,7 +291,7 @@ mod test {
         let mut station = BaseStation::new(1, &cfg, 1.0, &mut rng);
         let mut sim_state = SimState::new(&cfg);
         let event = BaseStationEvent::ReleaseUser;
-        let _ = station.execute_event(&event, &cfg, &mut sim_state, &mut rng, &mut logger);
+        let _ = station.execute_event(&event, &cfg, &mut sim_state, &mut rng, false, &mut logger);
     }
 
     #[test]
@@ -298,6 +311,7 @@ mod test {
             &cfg,
             &mut sim_state,
             &mut rng,
+            false,
             &mut logger,
         );
         assert!(res.is_some() == true);
@@ -309,6 +323,7 @@ mod test {
             &cfg,
             &mut sim_state,
             &mut rng,
+            false,
             &mut logger,
         );
         assert!(res.is_some() == true);
@@ -319,6 +334,7 @@ mod test {
             &cfg,
             &mut sim_state,
             &mut rng,
+            false,
             &mut logger,
         );
         assert!(res.is_some() == true);
@@ -356,6 +372,7 @@ mod test {
             &cfg,
             &mut sim_state,
             &mut rng,
+            false,
             &mut logger,
         );
         assert_eq!(station.resources.len(), 1);
@@ -410,6 +427,7 @@ mod test {
                 &cfg,
                 &mut sim_state,
                 &mut rng,
+                true,
                 &mut logger,
             );
             assert_eq!(res.is_none(), true);
@@ -421,6 +439,7 @@ mod test {
                 &cfg,
                 &mut sim_state,
                 &mut rng,
+                true,
                 &mut logger,
             );
             assert_eq!(res.is_none(), true);
@@ -450,6 +469,7 @@ mod test {
     }
 
     // #[test]
+    #[allow(dead_code)]
     fn generate_lambda() {
         let mut rng = StdRng::seed_from_u64(1);
         let mut file = std::fs::File::create("tests/lambda_values.csv").unwrap();
