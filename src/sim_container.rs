@@ -5,13 +5,11 @@ use rayon::prelude::*;
 use std::iter::zip;
 use std::path::PathBuf;
 
-use crate::basestation::BaseStationEvent;
-use crate::basestation::BaseStationResult;
+use crate::basestation::{BaseStation, BaseStationEvent, BaseStationResult, BaseStationState};
 use crate::logger::Logger;
-use crate::user::User;
 use crate::{
-    basestation::BaseStation,
     config::{Cli, Config},
+    user::User,
 };
 
 #[derive(Debug)]
@@ -217,6 +215,7 @@ impl SimContainer {
                 &self.cfg,
                 &mut sim_state,
                 &mut rng,
+                self.cli.log,
                 &mut logger,
             );
 
@@ -254,7 +253,7 @@ impl SimContainer {
 
             // check for potential power-up/down of stations
             if self.cli.enable_sleep {
-                todo!()
+                self.power_up_down(&mut stations);
             }
         }
         logger.flush();
@@ -289,6 +288,56 @@ impl SimContainer {
             .unwrap();
         redirect_station.redirect_here(&self.cfg, user)?;
         Ok(redirect_station.id)
+    }
+
+    fn power_up_down(&self, stations: &mut Vec<BaseStation>) {
+        let heavy_load = stations
+            .iter()
+            .position(|x| x.get_usage(&self.cfg) >= self.cfg.wakeup_threshold as f64);
+        match heavy_load {
+            Some(idx) => self.try_wakeup(idx, stations),
+            None => self.try_shutdown(stations),
+        };
+    }
+
+    fn try_wakeup(&self, heavy_load_idx: usize, stations: &mut Vec<BaseStation>) {
+        // Assumption -> wakeup station is empty or has very little users registered
+        // so there is need for only one redirection
+        let wakeup_idx = stations.iter().position(|x| match x.state {
+            BaseStationState::Sleep => true,
+            _ => false,
+        });
+        match wakeup_idx {
+            Some(idx) => {
+                let mut users = stations[heavy_load_idx].release_half();
+                stations[idx].state = BaseStationState::PowerUp(self.cfg.wakeup_delay);
+                stations[idx].redirect_here_vec(&self.cfg, &mut users);
+                debug_assert!(users.len() == 0);
+            }
+            None => (),
+        }
+    }
+
+    fn try_shutdown(&self, stations: &mut Vec<BaseStation>) {
+        let active_count = stations
+            .iter()
+            .filter(|s| match s.state {
+                BaseStationState::Active => true,
+                _ => false,
+            })
+            .count();
+        // There always must be at least single active station,
+        // so when looking for station for power down there must be
+        // at least 2 active stations
+        if active_count < 2 {
+            return;
+        }
+        stations
+            .iter_mut()
+            .find(|x| x.get_usage(&self.cfg) <= self.cfg.sleep_threshold as f64)
+            .map(|s| {
+                s.state = BaseStationState::PowerDown(self.cfg.wakeup_delay);
+            });
     }
 
     fn get_log_path(&self) -> PathBuf {
@@ -329,6 +378,7 @@ impl SimContainer {
 
 // test only functions
 impl SimContainer {
+    #[allow(dead_code)]
     pub fn new_test(s: usize, r: usize) -> SimContainer {
         let cli = Cli {
             with_config: None,
@@ -353,7 +403,7 @@ mod test {
     use rand::{rngs::StdRng, SeedableRng};
 
     use crate::{
-        basestation::{BaseStation, BaseStationEvent},
+        basestation::{BaseStation, BaseStationEvent, BaseStationState},
         logger::Logger,
         sim_container::{SimContainer, SimState},
         user::User,
@@ -377,6 +427,7 @@ mod test {
             &container.cfg,
             &mut sim_state,
             &mut rng,
+            false,
             &mut logger,
         );
         stations[0].execute_event(
@@ -384,6 +435,7 @@ mod test {
             &container.cfg,
             &mut sim_state,
             &mut rng,
+            false,
             &mut logger,
         );
         stations[2].execute_event(
@@ -391,6 +443,7 @@ mod test {
             &container.cfg,
             &mut sim_state,
             &mut rng,
+            false,
             &mut logger,
         );
         // 2 redirection candidates with different usage
@@ -425,6 +478,7 @@ mod test {
             &container.cfg,
             &mut sim_state,
             &mut rng,
+            false,
             &mut logger,
         );
         // no redirection candidates
@@ -465,5 +519,71 @@ mod test {
             None => panic!("Unable to unwrap error code"),
         };
         assert_eq!(diff.status.code().unwrap(), 0);
+    }
+
+    #[test]
+    fn try_wakeup() {
+        let sim = SimContainer::new_test(3, 10);
+        let mut rng = StdRng::seed_from_u64(1);
+        let mut stations = vec![
+            BaseStation::new(1, &sim.cfg, 1.0, &mut rng),
+            BaseStation::new(1, &sim.cfg, 1.0, &mut rng),
+            BaseStation::new(1, &sim.cfg, 1.0, &mut rng),
+        ];
+        stations[1].state = BaseStationState::Sleep;
+        for i in 0..10 {
+            stations[0].force_add_user(User {
+                id: i,
+                start: 0,
+                end: i as u64,
+            });
+        }
+
+        sim.try_wakeup(0, &mut stations);
+        // assert stations state
+        assert!(std::matches!(
+            stations[1].state,
+            BaseStationState::PowerUp(_)
+        ));
+        // assert redirected users
+        assert_eq!(stations[0].get_usage(&sim.cfg), 50.0);
+        assert_eq!(stations[1].get_usage(&sim.cfg), 50.0);
+        assert_eq!(stations[2].get_usage(&sim.cfg), 0.0);
+
+        sim.try_wakeup(0, &mut stations);
+        assert!(std::matches!(stations[0].state, BaseStationState::Active));
+        assert!(std::matches!(
+            stations[1].state,
+            BaseStationState::PowerUp(_)
+        ));
+        assert!(std::matches!(stations[2].state, BaseStationState::Active));
+        assert_eq!(stations[0].get_usage(&sim.cfg), 50.0);
+        assert_eq!(stations[1].get_usage(&sim.cfg), 50.0);
+        assert_eq!(stations[2].get_usage(&sim.cfg), 0.0);
+    }
+
+    #[test]
+    fn try_shutdown() {
+        let sim = SimContainer::new_test(2, 10);
+        let mut rng = StdRng::seed_from_u64(1);
+        let mut stations = vec![
+            BaseStation::new(1, &sim.cfg, 1.0, &mut rng),
+            BaseStation::new(1, &sim.cfg, 1.0, &mut rng),
+        ];
+        // Test shutdown
+        sim.try_shutdown(&mut stations);
+        assert!(std::matches!(
+            stations[0].state,
+            BaseStationState::PowerDown(_)
+        ));
+        assert!(std::matches!(stations[1].state, BaseStationState::Active));
+
+        // Test no shutdown when there are less than 2 active stations
+        sim.try_shutdown(&mut stations);
+        assert!(std::matches!(
+            stations[0].state,
+            BaseStationState::PowerDown(_)
+        ));
+        assert!(std::matches!(stations[1].state, BaseStationState::Active));
     }
 }
