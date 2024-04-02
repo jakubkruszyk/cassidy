@@ -1,6 +1,6 @@
-<mxfile host="Electron" modified="2024-03-29T22:17:59.256Z" agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) draw.io/22.1.15 Chrome/120.0.6099.109 Electron/28.1.0 Safari/537.36" etag="yBFSEz1dZHO8Wva0T15T" version="22.1.15" type="device">
+<mxfile host="Electron" modified="2024-03-30T12:24:38.772Z" agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) draw.io/22.1.15 Chrome/120.0.6099.109 Electron/28.1.0 Safari/537.36" etag="gW-UpSl4_KM_zustKGmt" version="22.1.15" type="device">
   <diagram name="Strona-1" id="wR0N-3_GXUcjeD7JFUU1">
-    <mxGraphModel dx="1182" dy="698" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="827" pageHeight="1169" math="0" shadow="0">
+    <mxGraphModel dx="1418" dy="838" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="827" pageHeight="1169" math="0" shadow="0">
       <root>
         <mxCell id="0" />
         <mxCell id="1" parent="0" />
@@ -263,7 +263,7 @@
         <mxCell id="7TCgR0upyNAYN09so2Ll-5" value="Any station in&lt;br&gt;sleep state?" style="rhombus;whiteSpace=wrap;html=1;strokeWidth=2;" parent="1" vertex="1">
           <mxGeometry x="381" y="1580" width="130" height="100" as="geometry" />
         </mxCell>
-        <mxCell id="VzlP4KJm-PAG0MGr1raf-2" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="7TCgR0upyNAYN09so2Ll-7" target="VzlP4KJm-PAG0MGr1raf-1">
+        <mxCell id="VzlP4KJm-PAG0MGr1raf-2" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" parent="1" source="7TCgR0upyNAYN09so2Ll-7" target="VzlP4KJm-PAG0MGr1raf-1" edge="1">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
         <mxCell id="7TCgR0upyNAYN09so2Ll-7" value="Wakeup &lt;br&gt;single station" style="whiteSpace=wrap;html=1;strokeWidth=2;" parent="1" vertex="1">
@@ -307,10 +307,10 @@
         <mxCell id="7TCgR0upyNAYN09so2Ll-22" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;entryPerimeter=0;" parent="1" source="7TCgR0upyNAYN09so2Ll-20" target="7TCgR0upyNAYN09so2Ll-10" edge="1">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="VzlP4KJm-PAG0MGr1raf-1" value="Redirect half of load to wakeup station" style="whiteSpace=wrap;html=1;strokeWidth=2;" vertex="1" parent="1">
+        <mxCell id="VzlP4KJm-PAG0MGr1raf-1" value="Redirect half of load to wakeup station" style="whiteSpace=wrap;html=1;strokeWidth=2;" parent="1" vertex="1">
           <mxGeometry x="550" y="1780" width="90" height="60" as="geometry" />
         </mxCell>
-        <mxCell id="VzlP4KJm-PAG0MGr1raf-3" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=1;entryY=0.5;entryDx=0;entryDy=0;entryPerimeter=0;" edge="1" parent="1" source="VzlP4KJm-PAG0MGr1raf-1" target="7TCgR0upyNAYN09so2Ll-10">
+        <mxCell id="VzlP4KJm-PAG0MGr1raf-3" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=1;entryY=0.5;entryDx=0;entryDy=0;entryPerimeter=0;" parent="1" source="VzlP4KJm-PAG0MGr1raf-1" target="7TCgR0upyNAYN09so2Ll-10" edge="1">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
       </root>
