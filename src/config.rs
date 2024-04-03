@@ -37,6 +37,12 @@ pub struct Cli {
     /// Show partial results from all iterations
     #[arg(long)]
     pub show_partial_results: bool,
+    /// Log simulation process in binary format
+    #[arg(long)]
+    pub log_wave: bool,
+    /// Binary log sampling divider
+    #[arg(long, value_name = "u32", default_value_t = 1)]
+    pub samples: usize,
 }
 
 impl Cli {
@@ -70,14 +76,6 @@ impl Cli {
             if !path.exists() {
                 return Err(format!(
                     "Given path to config file: '{}' does not exists",
-                    &path.display()
-                ));
-            }
-        }
-        if let Some(path) = &self.log_path {
-            if !path.exists() {
-                return Err(format!(
-                    "Given path to log file: '{}' does not exists",
                     &path.display()
                 ));
             }
@@ -171,6 +169,9 @@ impl Config {
         }
         if self.wakeup_threshold > 100 || self.wakeup_threshold < self.sleep_threshold {
             return Err("wakeup_threshold must be from range [0-100]% and must be greater than sleep_threshold".to_owned());
+        }
+        if self.sleep_threshold >= self.wakeup_threshold / 2 {
+            println!("Warning] sleep_threshold: {} is greater than wakeup_threshold / 2: {}. This can cause oscillations in stations state", self.sleep_threshold, self.wakeup_threshold)
         }
         if self.active_power < 0.0 {
             return Err("active_power must be greater than 0".to_owned());

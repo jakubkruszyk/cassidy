@@ -200,6 +200,10 @@ impl BaseStation {
         (self.resources.len() as f64) / (cfg.resources_count as f64) * 100.0
     }
 
+    pub fn get_usage_raw(&self) -> usize {
+        self.resources.len()
+    }
+
     /// Pushes given user into inner heap.
     /// If there is not enough space, user is discarded.
     pub fn redirect_here(&mut self, cfg: &Config, user: User) -> Result<(), ()> {
@@ -234,6 +238,22 @@ impl BaseStation {
                 v.push(self.resources.pop().unwrap());
             }
             v
+        }
+    }
+
+    /// Pops all of internal heap content and returns it as vector
+    pub fn release_all(&mut self) -> Vec<User> {
+        let mut v: Vec<User> = Vec::new();
+        for _ in 0..self.resources.len() {
+            v.push(self.resources.pop().unwrap());
+        }
+        v
+    }
+
+    pub fn is_active(&self) -> bool {
+        match self.state {
+            BaseStationState::Active => true,
+            _ => false,
         }
     }
 

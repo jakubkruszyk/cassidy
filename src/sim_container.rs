@@ -2,6 +2,7 @@ use clap::Parser;
 use rand::prelude::*;
 use rand::SeedableRng;
 use rayon::prelude::*;
+use std::io::Write;
 use std::iter::zip;
 use std::path::PathBuf;
 
@@ -152,8 +153,24 @@ impl SimContainer {
         for i in 0..self.cfg.stations_count {
             stations.push(BaseStation::new(i, &self.cfg, sim_state.lambda, &mut rng));
         }
+        // turn all but 1 stations to sleep if enabled
+        if self.cli.enable_sleep {
+            for station in stations.iter_mut().skip(1) {
+                station.state = BaseStationState::Sleep;
+            }
+        }
         // convert end time from hours to microseconds
         let end_time = (self.cli.duration * 3600.0 * 1000_000.0) as u64;
+
+        // initialize binary logger
+        let mut sample_counter = 0;
+        let mut wave_file = if self.cli.log_wave {
+            let mut wave_file = std::fs::File::create("wave.log").unwrap();
+            let _ = wave_file.write(&(self.cfg.stations_count as u32).to_le_bytes());
+            Some(wave_file)
+        } else {
+            None
+        };
 
         // simulation loop
         while sim_state.time < end_time {
@@ -255,6 +272,36 @@ impl SimContainer {
             if self.cli.enable_sleep {
                 self.power_up_down(&mut stations);
             }
+
+            // Binary logging
+            match wave_file.as_mut() {
+                Some(file) => {
+                    // each "row" of data consists of:
+                    // - timestamp 8 bytes
+                    // - stations data:
+                    //   - usage 4 bytes
+                    //   - state 1 byte
+                    sample_counter += 1;
+                    if sample_counter >= self.cli.samples {
+                        sample_counter = 0;
+                        let mut data = Vec::from(sim_state.time.to_le_bytes());
+                        for station in stations.iter() {
+                            for byte in station.get_usage_raw().to_le_bytes() {
+                                data.push(byte)
+                            }
+                            let state_code: u8 = match station.state {
+                                BaseStationState::Active => 0,
+                                BaseStationState::Sleep => 1,
+                                BaseStationState::PowerUp(_) => 2,
+                                BaseStationState::PowerDown(_) => 3,
+                            };
+                            data.push(state_code);
+                        }
+                        let _ = file.write_all(&data);
+                    }
+                }
+                None => (),
+            };
         }
         logger.flush();
         // return results
@@ -277,9 +324,14 @@ impl SimContainer {
         }
     }
 
+    /// Takes single user and assigns it to active station with lowest usage
     fn redirect(&self, user: User, stations: &mut Vec<BaseStation>) -> Result<usize, ()> {
         let redirect_station = stations
             .iter_mut()
+            .filter(|x| match x.state {
+                BaseStationState::Active => true,
+                _ => false,
+            })
             .min_by(|x, y| {
                 x.get_usage(&self.cfg)
                     .partial_cmp(&y.get_usage(&self.cfg))
@@ -303,41 +355,79 @@ impl SimContainer {
     fn try_wakeup(&self, heavy_load_idx: usize, stations: &mut Vec<BaseStation>) {
         // Assumption -> wakeup station is empty or has very little users registered
         // so there is need for only one redirection
-        let wakeup_idx = stations.iter().position(|x| match x.state {
-            BaseStationState::Sleep => true,
-            _ => false,
-        });
-        match wakeup_idx {
-            Some(idx) => {
+        stations
+            .iter()
+            .position(|x| match x.state {
+                BaseStationState::Sleep => true,
+                _ => false,
+            })
+            .map(|idx| {
+                // Redirect half of load to woken up station
                 let mut users = stations[heavy_load_idx].release_half();
                 stations[idx].state = BaseStationState::PowerUp(self.cfg.wakeup_delay);
                 stations[idx].redirect_here_vec(&self.cfg, &mut users);
                 debug_assert!(users.len() == 0);
-            }
-            None => (),
-        }
+            });
     }
 
     fn try_shutdown(&self, stations: &mut Vec<BaseStation>) {
+        // get number of active stations and sum of their remaining resource blocks
+        let mut active_capacity: usize = 0;
         let active_count = stations
             .iter()
-            .filter(|s| match s.state {
-                BaseStationState::Active => true,
-                _ => false,
+            .filter(|s| s.is_active())
+            .map(|x| {
+                active_capacity += self.cfg.resources_count - x.get_usage_raw();
             })
             .count();
+
         // There always must be at least single active station,
         // so when looking for station for power down there must be
         // at least 2 active stations
         if active_count < 2 {
             return;
         }
-        stations
+
+        // Find station with usage below sleep_threshold and check if it's usage is less
+        // than sum of remaining resource blocks in other active stations
+        let shutdown_station = stations
             .iter_mut()
-            .find(|x| x.get_usage(&self.cfg) <= self.cfg.sleep_threshold as f64)
-            .map(|s| {
-                s.state = BaseStationState::PowerDown(self.cfg.wakeup_delay);
+            .find(|x| x.get_usage(&self.cfg) <= self.cfg.sleep_threshold as f64);
+
+        let users = match shutdown_station {
+            Some(s) => {
+                let usage = s.get_usage_raw();
+                if usage < active_capacity - (self.cfg.resources_count - usage) {
+                    s.state = BaseStationState::PowerDown(self.cfg.wakeup_delay);
+                    Some(s.release_all())
+                } else {
+                    None
+                }
+            }
+            None => None,
+        };
+
+        // Redirect released users from powered down station to active ones
+        // beggining from stations with least load
+        users.map(|mut u| {
+            let mut station_indexes: Vec<usize> = stations
+                .iter_mut()
+                .filter(|s| s.is_active())
+                .map(|s| s.id)
+                .collect();
+            station_indexes.sort_by(|a, b| {
+                stations[*a]
+                    .get_usage_raw()
+                    .cmp(&stations[*b].get_usage_raw())
             });
+            for idx in station_indexes {
+                if u.len() == 0 {
+                    break;
+                }
+                stations[idx].redirect_here_vec(&self.cfg, &mut u);
+            }
+            debug_assert_eq!(u.len(), 0);
+        });
     }
 
     fn get_log_path(&self) -> PathBuf {
@@ -384,12 +474,14 @@ impl SimContainer {
             with_config: None,
             seed: Some(1),
             log: false,
+            log_wave: false,
             log_path: None,
             duration: 1.0,
             iterations: 1,
             enable_sleep: false,
             save_default_config: None,
             show_partial_results: false,
+            samples: 1,
         };
         let mut cfg = cli.create_config().unwrap();
         cfg.stations_count = s;
@@ -565,18 +657,41 @@ mod test {
     #[test]
     fn try_shutdown() {
         let sim = SimContainer::new_test(2, 10);
+        let mut sim_state = SimState::new(&sim.cfg);
+        let mut logger = Logger::new(false, &sim.cfg, "try_shutdown.log".into()).unwrap();
         let mut rng = StdRng::seed_from_u64(1);
         let mut stations = vec![
             BaseStation::new(1, &sim.cfg, 1.0, &mut rng),
             BaseStation::new(1, &sim.cfg, 1.0, &mut rng),
         ];
+        for _ in 0..5 {
+            stations[1].execute_event(
+                &BaseStationEvent::AddUser,
+                &sim.cfg,
+                &mut sim_state,
+                &mut rng,
+                false,
+                &mut logger,
+            );
+        }
+        stations[0].execute_event(
+            &BaseStationEvent::AddUser,
+            &sim.cfg,
+            &mut sim_state,
+            &mut rng,
+            false,
+            &mut logger,
+        );
+
         // Test shutdown
         sim.try_shutdown(&mut stations);
         assert!(std::matches!(
             stations[0].state,
             BaseStationState::PowerDown(_)
         ));
+        assert!(stations[0].get_usage_raw() == 0);
         assert!(std::matches!(stations[1].state, BaseStationState::Active));
+        assert!(stations[1].get_usage_raw() == 6);
 
         // Test no shutdown when there are less than 2 active stations
         sim.try_shutdown(&mut stations);
@@ -584,6 +699,34 @@ mod test {
             stations[0].state,
             BaseStationState::PowerDown(_)
         ));
+        assert!(stations[0].get_usage_raw() == 0);
         assert!(std::matches!(stations[1].state, BaseStationState::Active));
+        assert!(stations[1].get_usage_raw() == 6);
+
+        // Test no shutdown when there is not enough space for redirected users
+        stations[0].state = BaseStationState::Active;
+        stations[0].execute_event(
+            &BaseStationEvent::AddUser,
+            &sim.cfg,
+            &mut sim_state,
+            &mut rng,
+            false,
+            &mut logger,
+        );
+        for _ in 0..4 {
+            stations[1].execute_event(
+                &BaseStationEvent::AddUser,
+                &sim.cfg,
+                &mut sim_state,
+                &mut rng,
+                false,
+                &mut logger,
+            );
+        }
+        sim.try_shutdown(&mut stations);
+        assert!(std::matches!(stations[0].state, BaseStationState::Active));
+        assert!(stations[0].get_usage_raw() == 1);
+        assert!(std::matches!(stations[1].state, BaseStationState::Active));
+        assert!(stations[1].get_usage_raw() == 10);
     }
 }
