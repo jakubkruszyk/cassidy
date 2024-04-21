@@ -73,11 +73,13 @@ impl Cli {
             return Err("Duration must be greater than 0".to_string());
         }
         if let Some(path) = &self.with_config {
-            if !path.exists() {
-                return Err(format!(
-                    "Given path to config file: '{}' does not exists",
-                    &path.display()
-                ));
+            if let Some(file_dir) = path.parent() {
+                if !file_dir.exists() {
+                    return Err(format!(
+                        "Given path to config file: '{}' does not exists",
+                        &path.display()
+                    ));
+                }
             }
         }
         if self.iterations == 0 {

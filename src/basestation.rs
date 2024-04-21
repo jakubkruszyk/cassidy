@@ -144,7 +144,6 @@ impl BaseStation {
                     );
                 }
                 self.state = BaseStationState::Sleep;
-                // TODO: confirm this
                 self.total_power += cfg.wakeup_power;
                 None
             }
@@ -214,15 +213,11 @@ impl BaseStation {
         Ok(())
     }
 
-    /// Pushes users from given vector into inner heap.
+    /// Pushes n users from given vector into inner heap.
     /// If there is not enough space, remaining users are left in original vector
-    pub fn redirect_here_vec(&mut self, cfg: &Config, users: &mut Vec<User>) {
-        let space = cfg.resources_count - self.resources.len();
-        let range = if space < users.len() {
-            space
-        } else {
-            users.len()
-        };
+    pub fn redirect_here_vec(&mut self, cfg: &Config, users: &mut Vec<User>, n: usize) {
+        let space = (cfg.resources_count - self.resources.len()).min(n);
+        let range = space.min(users.len());
         for _ in 0..range {
             self.resources.push(users.pop().unwrap());
         }
