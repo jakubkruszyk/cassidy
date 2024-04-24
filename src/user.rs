@@ -31,18 +31,21 @@ impl Display for User {
 
 #[cfg(test)]
 mod test {
-    use rand::{rngs::StdRng, SeedableRng};
-
-    use crate::config::Config;
+    use std::io::Write;
 
     use super::User;
+    use crate::config::Config;
+    use rand::{rngs::StdRng, SeedableRng};
 
     #[test]
     fn test_rng() {
         let cfg = Config::default();
         let mut rng = StdRng::from_entropy();
+        let mut file = std::fs::File::create("tests/user_rng.log")
+            .expect("Couldn't create log file for user rng test");
         for _ in 0..10000 {
             let user = User::new(1, 0, &mut rng, &cfg);
+            let _ = file.write(format!("{},", (user.end - user.start)).as_bytes());
             assert!(
                 user.end >= cfg.process_time_min * 1000 && user.end <= cfg.process_time_max * 1000,
                 "min = {} user.end = {} max = {}",

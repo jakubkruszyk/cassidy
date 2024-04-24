@@ -381,15 +381,28 @@ impl SimContainer {
     }
 
     fn try_shutdown(&self, sim_state: &SimState, stations: &mut Vec<BaseStation>) {
-        // Get all active stations id and their remaining capacity
+        // Find station with usage below sleep_threshold
+        let shutdown_station_id = stations
+            .iter()
+            .filter(|s| s.is_active())
+            .find(|s| s.get_usage(&self.cfg) <= self.cfg.sleep_threshold as f64)
+            .map(|s| s.id);
+
+        // Early return (most likely case)
+        let shutdown_station_id = match shutdown_station_id {
+            Some(id) => id,
+            None => return,
+        };
+
+        // Get all active stations (except shutdown candidate) id and their remaining capacity
         let mut active_capacity: usize = 0;
         let active_capacity_list: Vec<(usize, usize)> = stations
             .iter()
-            .filter(|s| s.is_active())
-            .map(|x| {
-                let capacity = self.cfg.resources_count - x.get_usage_raw();
+            .filter(|s| s.is_active() && s.id != shutdown_station_id)
+            .map(|s| {
+                let capacity = self.cfg.resources_count - s.get_usage_raw();
                 active_capacity += capacity;
-                (x.id, capacity)
+                (s.id, capacity)
             })
             .collect();
 
@@ -400,30 +413,18 @@ impl SimContainer {
             return;
         }
 
-        // Find station with usage below sleep_threshold and check if it's usage is less
-        // than sum of remaining resource blocks in other active stations
-        let shutdown_station = stations
-            .iter_mut()
-            .filter(|s| s.is_active())
-            .find(|s| s.get_usage(&self.cfg) <= self.cfg.sleep_threshold as f64);
+        // Check if there is enough capacity in active stations for users from shutdown station
+        let station = &mut stations[shutdown_station_id];
+        if station.get_usage_raw() >= active_capacity {
+            return;
+        }
 
-        let mut users = match shutdown_station {
-            Some(s) => {
-                let usage = s.get_usage_raw();
-                if usage < active_capacity - (self.cfg.resources_count - usage) {
-                    s.state =
-                        BaseStationState::PowerDown(sim_state.time + self.cfg.wakeup_delay * 1000);
-                    s.release_all()
-                } else {
-                    return;
-                }
-            }
-            None => return,
-        };
+        let mut users = station.release_all();
+        station.state = BaseStationState::PowerDown(sim_state.time + self.cfg.wakeup_delay * 1000);
 
         // Redirect users to all other active stations, proportionally to their remaining capacity
         let u_len = users.len();
-        for (idx, capacity) in &active_capacity_list[0..active_capacity_list.len() - 2] {
+        for (idx, capacity) in &active_capacity_list[0..active_capacity_list.len() - 1] {
             let count = capacity * u_len / active_capacity;
             stations[*idx].redirect_here_vec(&self.cfg, &mut users, count);
         }
@@ -665,15 +666,16 @@ mod test {
 
     #[test]
     fn try_shutdown() {
-        let sim = SimContainer::new_test(2, 10);
+        let sim = SimContainer::new_test(3, 20);
         let mut sim_state = SimState::new(&sim.cfg);
         let mut logger = Logger::new(false, &sim.cfg, "try_shutdown.log".into()).unwrap();
         let mut rng = StdRng::seed_from_u64(1);
         let mut stations = vec![
+            BaseStation::new(0, &sim.cfg, 1.0, &mut rng),
             BaseStation::new(1, &sim.cfg, 1.0, &mut rng),
-            BaseStation::new(1, &sim.cfg, 1.0, &mut rng),
+            BaseStation::new(2, &sim.cfg, 1.0, &mut rng),
         ];
-        for _ in 0..5 {
+        for _ in 0..10 {
             stations[1].execute_event(
                 &BaseStationEvent::AddUser,
                 &sim.cfg,
@@ -683,34 +685,54 @@ mod test {
                 &mut logger,
             );
         }
-        stations[0].execute_event(
-            &BaseStationEvent::AddUser,
-            &sim.cfg,
-            &mut sim_state,
-            &mut rng,
-            false,
-            &mut logger,
-        );
+        for _ in 0..6 {
+            stations[2].execute_event(
+                &BaseStationEvent::AddUser,
+                &sim.cfg,
+                &mut sim_state,
+                &mut rng,
+                false,
+                &mut logger,
+            );
+        }
+        for _ in 0..4 {
+            stations[0].execute_event(
+                &BaseStationEvent::AddUser,
+                &sim.cfg,
+                &mut sim_state,
+                &mut rng,
+                false,
+                &mut logger,
+            );
+        }
 
         // Test shutdown
+        // 4 users from station 0 redirected to:
+        // - station 1: 10/24 * 4 -> 1 user
+        // - station 2: 4 - 1 = 3 users
         sim.try_shutdown(&sim_state, &mut stations);
         assert!(std::matches!(
             stations[0].state,
             BaseStationState::PowerDown(_)
         ));
-        assert!(stations[0].get_usage_raw() == 0);
+        assert_eq!(stations[0].get_usage_raw(), 0);
         assert!(std::matches!(stations[1].state, BaseStationState::Active));
-        assert!(stations[1].get_usage_raw() == 6);
+        assert_eq!(stations[1].get_usage_raw(), 11);
+        assert!(std::matches!(stations[2].state, BaseStationState::Active));
+        assert_eq!(stations[2].get_usage_raw(), 9);
 
         // Test no shutdown when there are less than 2 active stations
+        stations[1].state = BaseStationState::Sleep;
+        let _ = stations[2].release_all();
         sim.try_shutdown(&sim_state, &mut stations);
         assert!(std::matches!(
             stations[0].state,
             BaseStationState::PowerDown(_)
         ));
-        assert!(stations[0].get_usage_raw() == 0);
-        assert!(std::matches!(stations[1].state, BaseStationState::Active));
-        assert!(stations[1].get_usage_raw() == 6);
+        assert_eq!(stations[0].get_usage_raw(), 0);
+        assert_eq!(stations[1].get_usage_raw(), 11);
+        assert!(std::matches!(stations[2].state, BaseStationState::Active));
+        assert_eq!(stations[2].get_usage_raw(), 0);
 
         // Test no shutdown when there is not enough space for redirected users
         stations[0].state = BaseStationState::Active;
@@ -722,8 +744,8 @@ mod test {
             false,
             &mut logger,
         );
-        for _ in 0..4 {
-            stations[1].execute_event(
+        for _ in 0..20 {
+            stations[2].execute_event(
                 &BaseStationEvent::AddUser,
                 &sim.cfg,
                 &mut sim_state,
@@ -734,8 +756,10 @@ mod test {
         }
         sim.try_shutdown(&sim_state, &mut stations);
         assert!(std::matches!(stations[0].state, BaseStationState::Active));
-        assert!(stations[0].get_usage_raw() == 1);
-        assert!(std::matches!(stations[1].state, BaseStationState::Active));
-        assert!(stations[1].get_usage_raw() == 10);
+        assert_eq!(stations[0].get_usage_raw(), 1);
+        assert!(std::matches!(stations[1].state, BaseStationState::Sleep));
+        assert_eq!(stations[1].get_usage_raw(), 11);
+        assert!(std::matches!(stations[2].state, BaseStationState::Active));
+        assert_eq!(stations[2].get_usage_raw(), 20);
     }
 }

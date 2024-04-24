@@ -288,7 +288,6 @@ mod test {
     use super::{BaseStation, BaseStationEvent, BaseStationState};
     use crate::{config::Config, logger::Logger, sim_container::SimState, user::User};
     use rand::{rngs::StdRng, SeedableRng};
-    use rand_distr::Distribution;
     use std::{io::Write, path::PathBuf, process::Command};
 
     #[test]
@@ -525,14 +524,15 @@ mod test {
         assert_eq!(diff.status.code().unwrap(), 0);
     }
 
-    // #[test]
-    #[allow(dead_code)]
+    #[test]
     fn generate_lambda() {
         let mut rng = StdRng::seed_from_u64(1);
-        let mut file = std::fs::File::create("tests/lambda_values.csv").unwrap();
+        let mut file = std::fs::File::create("tests/station_rng.log")
+            .expect("Couldn't create log file for station rng test.");
         for lambda in [1.0, 2.0, 5.0, 10.0, 20.0, 50.0, 100.0] {
+            let _ = file.write(format!("{},", lambda).as_bytes());
             for _ in 0..1000 {
-                let x = rand_distr::Exp::new(lambda).unwrap().sample(&mut rng) * 1000_000.0;
+                let x = BaseStation::get_new_timestamp(lambda, &mut rng);
                 let _ = file.write(format!("{},", x).as_bytes());
             }
             let _ = file.write("\n".as_bytes());
