@@ -1,4 +1,5 @@
 use std::{
+    fmt::Display,
     fs::File,
     io::{Read, Write},
     path::PathBuf,
@@ -43,6 +44,9 @@ pub struct Cli {
     /// Binary log sampling divider
     #[arg(long, value_name = "u32", default_value_t = 1)]
     pub samples: usize,
+    /// Enable iteration over given parameter based on given config
+    #[arg(long, value_name = "path")]
+    pub walk_over: Option<PathBuf>,
 }
 
 impl Cli {
@@ -65,6 +69,28 @@ impl Cli {
             }
         } else {
             Ok(Config::default())
+        }
+    }
+
+    pub fn create_walk_over_config(&self) -> Result<Option<WalkOverConfig>, String> {
+        if let Some(file_path) = &self.walk_over {
+            let file = File::open(&file_path);
+            let mut file = match file {
+                Ok(f) => f,
+                Err(_) => return Err(format!("Cannot open file: {}", file_path.display())),
+            };
+            let mut data = String::new();
+            let res = file.read_to_string(&mut data);
+            match res {
+                Err(_) => return Err(format!("Cannot read file: {}", file_path.display())),
+                _ => (),
+            }
+            match toml::from_str::<WalkOverConfig>(&data) {
+                Ok(c) => Ok(Some(c)),
+                Err(e) => Err(e.to_string()),
+            }
+        } else {
+            Ok(None)
         }
     }
 
@@ -103,8 +129,8 @@ pub struct Config {
     pub lambda: f64,           // [users per second]
     pub lambda_coefs: Vec<LambdaPoint>,
     pub resources_count: usize,
-    pub sleep_threshold: u32,  // [0-100]%
-    pub wakeup_threshold: u32, // [0-100]%
+    pub sleep_threshold: f64,  // [0-100]%
+    pub wakeup_threshold: f64, // [0-100]%
     pub stations_count: usize,
     pub active_power: f64, // [W]
     pub sleep_power: f64,  // [W]
@@ -138,8 +164,8 @@ impl Default for Config {
                 },
             ],
             resources_count: 273,
-            sleep_threshold: 20,
-            wakeup_threshold: 80,
+            sleep_threshold: 20.0,
+            wakeup_threshold: 80.0,
             stations_count: 10,
             active_power: 200.0,
             sleep_power: 1.0,
@@ -166,13 +192,13 @@ impl Config {
                 return Err("lambda timestamp must be greater than 0".to_owned());
             }
         }
-        if self.sleep_threshold > 100 {
+        if self.sleep_threshold > 100.0 {
             return Err("sleep_threshold must be from range [0-100]%".to_owned());
         }
-        if self.wakeup_threshold > 100 || self.wakeup_threshold < self.sleep_threshold {
+        if self.wakeup_threshold > 100.0 || self.wakeup_threshold < self.sleep_threshold {
             return Err("wakeup_threshold must be from range [0-100]% and must be greater than sleep_threshold".to_owned());
         }
-        if self.sleep_threshold >= self.wakeup_threshold / 2 {
+        if self.sleep_threshold >= self.wakeup_threshold / 2.0 {
             println!("Warning] sleep_threshold: {} is greater than wakeup_threshold / 2: {}. This can cause oscillations in stations state", self.sleep_threshold, self.wakeup_threshold)
         }
         if self.active_power < 0.0 {
@@ -195,4 +221,29 @@ impl Config {
         file.write_all(cfg_str.as_bytes())?;
         Ok(())
     }
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub enum WalkOverType {
+    Lambda,
+    SleepLow,
+    SleepHigh,
+}
+
+impl Display for WalkOverType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            WalkOverType::Lambda => write!(f, "lambda"),
+            WalkOverType::SleepLow => write!(f, "sleep_low"),
+            WalkOverType::SleepHigh => write!(f, "sleep_high"),
+        }
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct WalkOverConfig {
+    pub var: WalkOverType,
+    pub start: f64,
+    pub end: f64,
+    pub step: f64,
 }

@@ -7,6 +7,7 @@ use std::iter::zip;
 use std::path::PathBuf;
 
 use crate::basestation::{BaseStation, BaseStationEvent, BaseStationResult, BaseStationState};
+use crate::config::WalkOverType;
 use crate::logger::Logger;
 use crate::{
     config::{Cli, Config},
@@ -121,6 +122,34 @@ impl SimResults {
         }
         msg
     }
+
+    pub fn get_csv_header(&self) -> String {
+        let mut msg = format!(
+            "processed_users,average_resource_usage,average_power_consumption,average_user_drop_rate"
+        );
+        for i in 0..self.stations.len() {
+            msg += (format!(
+                ",station{}_average_power,station{}_average_usage,station{}_average_sleep_time",
+                i, i, i
+            ))
+            .as_str();
+        }
+        msg
+    }
+
+    pub fn get_csv(&self) -> String {
+        let mut data = format!(
+            "{},{},{},{}",
+            self.total_users, self.average_usage, self.average_power, self.average_drop_rate
+        );
+        for station in self.stations.iter() {
+            data += &format!(
+                ",{},{},{}",
+                station.average_power, station.average_usage, station.average_sleep_time
+            );
+        }
+        data
+    }
 }
 
 pub struct SimContainer {
@@ -137,6 +166,20 @@ impl SimContainer {
             p.time *= 3600.0 * 1000_000.0;
         }
         Ok(SimContainer { cli, cfg })
+    }
+
+    pub fn update_param(&mut self, param: &WalkOverType, value: f64) {
+        match param {
+            WalkOverType::Lambda => {
+                self.cfg.lambda = value;
+            }
+            WalkOverType::SleepLow => {
+                self.cfg.sleep_threshold = value;
+            }
+            WalkOverType::SleepHigh => {
+                self.cfg.wakeup_threshold = value;
+            }
+        }
     }
 
     pub fn simulate(&self, iter: u32, log_path: PathBuf) -> SimResults {
@@ -345,7 +388,7 @@ impl SimContainer {
     fn power_up_down(&self, sim_state: &SimState, stations: &mut Vec<BaseStation>) {
         let heavy_load = stations
             .iter()
-            .position(|x| x.get_usage(&self.cfg) >= self.cfg.wakeup_threshold as f64);
+            .position(|x| x.get_usage(&self.cfg) >= self.cfg.wakeup_threshold);
         match heavy_load {
             Some(idx) => self.try_wakeup(sim_state, idx, stations),
             None => self.try_shutdown(sim_state, stations),
@@ -385,7 +428,7 @@ impl SimContainer {
         let shutdown_station_id = stations
             .iter()
             .filter(|s| s.is_active())
-            .find(|s| s.get_usage(&self.cfg) <= self.cfg.sleep_threshold as f64)
+            .find(|s| s.get_usage(&self.cfg) <= self.cfg.sleep_threshold)
             .map(|s| s.id);
 
         // Early return (most likely case)
@@ -435,20 +478,20 @@ impl SimContainer {
         debug_assert_eq!(users.len(), 0);
     }
 
-    fn get_log_path(&self) -> PathBuf {
+    fn get_log_path(&self, run_no: usize) -> PathBuf {
         if self.cli.log {
             match &self.cli.log_path {
                 Some(p) => p.to_owned(),
-                None => PathBuf::from("sim.log"),
+                None => PathBuf::from(format!("sim.run_{}_no_", run_no)),
             }
         } else {
-            PathBuf::from("sim.log")
+            PathBuf::from(format!("sim.run_{}_no_", run_no))
         }
     }
 
-    pub fn run(&mut self) -> SimResults {
+    pub fn run(&self, run_no: usize) -> SimResults {
         let mut sim_res = SimResults::new_zero(&self.cfg);
-        let path = self.get_log_path();
+        let path = self.get_log_path(run_no);
         let partial_sim_res: Vec<SimResults> = (0..self.cli.iterations)
             .into_par_iter()
             .map(|i| {
@@ -487,6 +530,7 @@ impl SimContainer {
             save_default_config: None,
             show_partial_results: false,
             samples: 1,
+            walk_over: None,
         };
         let mut cfg = cli.create_config().unwrap();
         // convert lambda timestamps from hours to microseconds
