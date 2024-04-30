@@ -2,6 +2,7 @@ use clap::Parser;
 use rand::prelude::*;
 use rand::SeedableRng;
 use rayon::prelude::*;
+use std::ffi::OsString;
 use std::io::Write;
 use std::iter::zip;
 use std::path::PathBuf;
@@ -189,7 +190,7 @@ impl SimContainer {
             Some(seed) => StdRng::seed_from_u64(seed + iter as u64),
             None => StdRng::from_entropy(),
         };
-        let mut logger = Logger::new(self.cli.log, &self.cfg, log_path)
+        let mut logger = Logger::new(self.cli.log, &self.cfg, &log_path)
             .expect("Internal error: failed to create log file");
         // create BaseStations
         let mut stations: Vec<BaseStation> = Vec::with_capacity(self.cfg.stations_count);
@@ -207,8 +208,11 @@ impl SimContainer {
 
         // initialize binary logger
         let mut sample_counter = 0;
+        let mut bin_path = log_path.clone();
+        bin_path.set_file_name("sim_bin");
+        bin_path.set_extension(log_path.extension().unwrap());
         let mut wave_file = if self.cli.log_wave {
-            let mut wave_file = std::fs::File::create("wave.log").unwrap();
+            let mut wave_file = std::fs::File::create(bin_path).unwrap();
             let _ = wave_file.write(&(self.cfg.stations_count as u32).to_le_bytes());
             Some(wave_file)
         } else {
@@ -478,26 +482,15 @@ impl SimContainer {
         debug_assert_eq!(users.len(), 0);
     }
 
-    fn get_log_path(&self, run_no: usize) -> PathBuf {
-        if self.cli.log {
-            match &self.cli.log_path {
-                Some(p) => p.to_owned(),
-                None => PathBuf::from(format!("sim.run_{}_no_", run_no)),
-            }
-        } else {
-            PathBuf::from(format!("sim.run_{}_no_", run_no))
-        }
-    }
-
     pub fn run(&self, run_no: usize) -> SimResults {
         let mut sim_res = SimResults::new_zero(&self.cfg);
-        let path = self.get_log_path(run_no);
+        let path = PathBuf::from(format!("sim.run_{}_no_", run_no));
         let partial_sim_res: Vec<SimResults> = (0..self.cli.iterations)
             .into_par_iter()
             .map(|i| {
-                let mut log_path = path.clone();
+                let mut log_path: OsString = path.clone().into();
                 log_path.push(i.to_string());
-                let res = self.simulate(i, log_path);
+                let res = self.simulate(i, log_path.into());
                 if self.cli.show_partial_results {
                     println!("Partial result - iteration: {}", i);
                     println!("{}", res.get_report());
@@ -523,7 +516,6 @@ impl SimContainer {
             seed: Some(1),
             log: false,
             log_wave: false,
-            log_path: None,
             duration: 1.0,
             iterations: 1,
             enable_sleep: false,
@@ -563,7 +555,7 @@ mod test {
         let mut stations: Vec<BaseStation> = Vec::new();
         let mut rng = StdRng::seed_from_u64(1);
         let mut logger =
-            Logger::new(false, &container.cfg, PathBuf::from("tests/redirect.log")).unwrap();
+            Logger::new(false, &container.cfg, &PathBuf::from("tests/redirect.log")).unwrap();
         for i in 0..container.cfg.stations_count {
             stations.push(BaseStation::new(i, &container.cfg, 1.0, &mut rng));
         }
@@ -712,7 +704,7 @@ mod test {
     fn try_shutdown() {
         let sim = SimContainer::new_test(3, 20);
         let mut sim_state = SimState::new(&sim.cfg);
-        let mut logger = Logger::new(false, &sim.cfg, "try_shutdown.log".into()).unwrap();
+        let mut logger = Logger::new(false, &sim.cfg, &PathBuf::from("try_shutdown.log")).unwrap();
         let mut rng = StdRng::seed_from_u64(1);
         let mut stations = vec![
             BaseStation::new(0, &sim.cfg, 1.0, &mut rng),

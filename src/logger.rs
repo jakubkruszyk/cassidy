@@ -12,10 +12,10 @@ pub struct Logger {
 }
 
 impl Logger {
-    pub fn new(enable: bool, cfg: &Config, path: PathBuf) -> Result<Logger, String> {
+    pub fn new(enable: bool, cfg: &Config, path: &PathBuf) -> Result<Logger, String> {
         if enable {
             if path.exists() {
-                let _ = remove_file(&path);
+                let _ = remove_file(path);
             }
             Ok(Logger {
                 buffer: Vec::with_capacity(cfg.log_buffer),
@@ -62,7 +62,7 @@ mod test {
     fn logger() {
         let mut cfg = Config::default();
         cfg.log_buffer = 5;
-        let mut logger = Logger::new(true, &cfg, PathBuf::from("test_logger.log")).unwrap();
+        let mut logger = Logger::new(true, &cfg, &PathBuf::from("test_logger.log")).unwrap();
         for i in 0..5 {
             logger.log(format!("Line: {}", i), 0, &cfg);
         }
@@ -82,7 +82,7 @@ mod test {
     #[test]
     fn flush() {
         let cfg = Config::default();
-        let mut logger = Logger::new(true, &cfg, PathBuf::from("test_flush.log")).unwrap();
+        let mut logger = Logger::new(true, &cfg, &PathBuf::from("test_flush.log")).unwrap();
         logger.log("Line: 1".to_string(), 0, &cfg);
         logger.flush();
         std::mem::drop(logger);

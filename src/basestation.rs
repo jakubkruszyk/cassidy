@@ -297,7 +297,7 @@ mod test {
         let mut cfg = Config::default();
         cfg.resources_count = 10;
         let mut logger =
-            Logger::new(false, &cfg, PathBuf::from("test_add_release_user.log")).unwrap();
+            Logger::new(false, &cfg, &PathBuf::from("test_add_release_user.log")).unwrap();
         let mut rng = StdRng::seed_from_u64(1);
         let mut station = BaseStation::new(1, &cfg, 1.0, &mut rng);
         let mut sim_state = SimState::new(&cfg);
@@ -327,7 +327,7 @@ mod test {
         let mut cfg = Config::default();
         cfg.resources_count = 10;
         let mut logger =
-            Logger::new(false, &cfg, PathBuf::from("test_release_user_panic.log")).unwrap();
+            Logger::new(false, &cfg, &PathBuf::from("test_release_user_panic.log")).unwrap();
         let mut rng = StdRng::seed_from_u64(1);
         let mut station = BaseStation::new(1, &cfg, 1.0, &mut rng);
         let mut sim_state = SimState::new(&cfg);
@@ -341,7 +341,7 @@ mod test {
         let mut cfg = Config::default();
         cfg.resources_count = 10;
         let mut logger =
-            Logger::new(false, &cfg, PathBuf::from("test_add_user_all_states.log")).unwrap();
+            Logger::new(false, &cfg, &PathBuf::from("test_add_user_all_states.log")).unwrap();
         let mut rng = StdRng::seed_from_u64(1);
         let mut sim_state = SimState::new(&cfg);
         let mut station = BaseStation::new(1, &cfg, 1.0, &mut rng);
@@ -387,7 +387,7 @@ mod test {
         let mut cfg = Config::default();
         cfg.resources_count = 10;
         let mut logger =
-            Logger::new(false, &cfg, PathBuf::from("test_add_user_all_states.log")).unwrap();
+            Logger::new(false, &cfg, &PathBuf::from("test_add_user_all_states.log")).unwrap();
         let mut rng = StdRng::seed_from_u64(1);
         let mut sim_state = SimState::new(&cfg);
         let mut station = BaseStation::new(1, &cfg, 1.0, &mut rng);
@@ -472,7 +472,7 @@ mod test {
         let mut cfg = Config::default();
         cfg.resources_count = 10;
         let mut logger =
-            Logger::new(true, &cfg, PathBuf::from("tests/add_release_order.log")).unwrap();
+            Logger::new(true, &cfg, &PathBuf::from("tests/add_release_order.log")).unwrap();
         let mut rng = StdRng::seed_from_u64(1);
         let mut sim_state = SimState::new(&cfg);
         let mut station = BaseStation::new(1, &cfg, 1.0, &mut rng);

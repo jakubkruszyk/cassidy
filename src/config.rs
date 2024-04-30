@@ -17,17 +17,14 @@ pub struct Cli {
     /// Seed for random number generator
     #[arg(long, value_name = "u64")]
     pub seed: Option<u64>,
-    /// Generate log file
+    /// Generate event log file
     #[arg(long)]
     pub log: bool,
-    /// Path where log file will be saved to
-    #[arg(long, value_name = "path")]
-    pub log_path: Option<PathBuf>,
-    /// Time in hours, simulation will be run for. Maximum precision is 1ms
+    /// Time (in hours) simulation will be run for. Maximum precision is 1ms
     #[arg(long, value_name = "time")]
     pub duration: f64,
     /// Simulation iterations count
-    #[arg(long, value_name = "u32")]
+    #[arg(long, value_name = "u32", default_value_t = 1)]
     pub iterations: u32,
     /// Enable sleep state logic
     #[arg(long)]
