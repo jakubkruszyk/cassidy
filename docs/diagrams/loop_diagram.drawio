@@ -1,6 +1,6 @@
-<mxfile host="Electron" modified="2024-04-20T16:39:14.609Z" agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) draw.io/22.1.15 Chrome/120.0.6099.109 Electron/28.1.0 Safari/537.36" etag="Qlfua8HqjVWFgiBmSz9O" version="22.1.15" type="device">
+<mxfile host="Electron" modified="2024-04-30T20:55:04.441Z" agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) draw.io/22.1.15 Chrome/120.0.6099.109 Electron/28.1.0 Safari/537.36" etag="mkvrHAknxXsX9JOq3CGi" version="22.1.15" type="device">
   <diagram name="Strona-1" id="wR0N-3_GXUcjeD7JFUU1">
-    <mxGraphModel dx="1418" dy="838" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="827" pageHeight="1169" math="0" shadow="0">
+    <mxGraphModel dx="1493" dy="882" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="827" pageHeight="1169" math="0" shadow="0">
       <root>
         <mxCell id="0" />
         <mxCell id="1" parent="0" />
@@ -13,7 +13,7 @@
         <mxCell id="ewvP3wC_7j1jmrWXz1Fn-11" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" parent="1" source="ewvP3wC_7j1jmrWXz1Fn-8" target="ewvP3wC_7j1jmrWXz1Fn-10" edge="1">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="ewvP3wC_7j1jmrWXz1Fn-8" value="Initialize handlers and simulation state" style="whiteSpace=wrap;html=1;strokeWidth=2;" parent="1" vertex="1">
+        <mxCell id="ewvP3wC_7j1jmrWXz1Fn-8" value="Initialize simulation state" style="whiteSpace=wrap;html=1;strokeWidth=2;" parent="1" vertex="1">
           <mxGeometry x="370" y="260" width="120" height="60" as="geometry" />
         </mxCell>
         <mxCell id="ewvP3wC_7j1jmrWXz1Fn-13" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" parent="1" source="ewvP3wC_7j1jmrWXz1Fn-10" target="ewvP3wC_7j1jmrWXz1Fn-12" edge="1">
@@ -305,7 +305,7 @@
         <mxCell id="7TCgR0upyNAYN09so2Ll-17" value="Any station with&lt;br&gt;load &amp;lt; 20%" style="rhombus;whiteSpace=wrap;html=1;strokeWidth=2;" parent="1" vertex="1">
           <mxGeometry x="173.5" y="1490" width="130" height="100" as="geometry" />
         </mxCell>
-        <mxCell id="7TCgR0upyNAYN09so2Ll-20" value="Change state to PowerDown of single station. Redirect its users to other active stations" style="whiteSpace=wrap;html=1;strokeWidth=2;" parent="1" vertex="1">
+        <mxCell id="7TCgR0upyNAYN09so2Ll-20" value="Change state to PowerDown of single station. Redirect its users to other active stations evenly" style="whiteSpace=wrap;html=1;strokeWidth=2;" parent="1" vertex="1">
           <mxGeometry x="176.5" y="1780" width="124" height="90" as="geometry" />
         </mxCell>
         <mxCell id="7TCgR0upyNAYN09so2Ll-22" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;entryPerimeter=0;" parent="1" source="7TCgR0upyNAYN09so2Ll-20" target="7TCgR0upyNAYN09so2Ll-10" edge="1">

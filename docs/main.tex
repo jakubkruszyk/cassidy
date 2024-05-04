@@ -1,0 +1,31 @@
+\documentclass[11pt]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[T1,OT4]{fontenc}
+\usepackage{polski}
+\usepackage{geometry}
+\newgeometry{tmargin=2.5cm, bmargin=2.5cm, lmargin=2cm, rmargin=2cm}
+\usepackage[smartEllipses]{markdown}
+\usepackage{listings}
+\usepackage[newfloat]{minted}
+
+%--------------------------------------
+% Custom code environment
+%--------------------------------------
+\newenvironment{code}{\captionsetup{type=listing}}{}
+\SetupFloatingEnvironment{listing}{name=Kod źródłowy}
+
+\title{Cassidy}
+\author{Jakub Kruszyk}
+
+\begin{document}
+\maketitle
+\tableofcontents
+\newpage
+
+\input{sections/intro}
+\input{sections/manual}
+\input{sections/how_it_works}
+\input{sections/classes}
+\input{sections/results}
+
+\end{document}

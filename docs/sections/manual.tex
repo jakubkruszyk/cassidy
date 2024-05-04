@@ -1,0 +1,208 @@
+\section{Instrukcja użytkowania}
+\subsection{Uruchamianie programu}
+Program \emph{cassidy} jest uruchamiany z wiersza poleceń w następujący sposób:
+{
+\fontencoding{T1}\selectfont 
+\begin{minted}{shell}
+cassidy [Options] --duration <f64>
+\end{minted}
+}
+
+\noindent Dostępne opcje przedstawiono w tabeli \ref{options_table}.
+\newline\newline
+\begin{table}[h]
+\caption{Dostępne przełączniki programu \emph{cassidy}}
+\label{options_table}
+\begin{center}
+\fontencoding{T1}\selectfont
+\renewcommand{\arraystretch}{1.5}
+\begin{tabular}{|l|l|}
+\hline 
+Opcja & Opis \\ 
+\hline 
+-{}-with-config & Ścieżka do pliku konfiguracyjnego symulacji \\ 
+\hline
+-{}-seed <u64> & Ziarno generatora liczb losowych. [domyślnie: entropia systemu] \\
+\hline
+-{}-log & Aktywuje generowanie pliku event log \\
+\hline
+-{}-duration <time> & Czas trwania symulacji w godzinach \\
+\hline
+-{}-iterations <u32> & Liczba iteracji uśredniających wynik końcowy. [domyślnie: 1]\\
+\hline
+-{}-enable-sleep & Aktywuje logikę odpowiadającą za usypianie i wybudzanie stacji bazowych \\
+\hline
+-{}-save-default-config <path> & Domyślna konfiguracja symulacji zostanie zapisana pod ścieżką \emph{path} \\
+\hline
+-{}-show-partial-results & Aktywuje wyświetlanie wyników każdej iteracji \\
+\hline
+-{}-log-wave & Aktywuje generowanie pliku log w formacie binarnym \\
+\hline
+-{}-samples <u32> & Dzielnik ilości zapisywanych próbek do binarnego pliku log [domyślnie: 1] \\
+\hline
+-{}-walk-over <path> & Aktywuje iterowanie po zadanym parametrze z pliku pod ścieżką \emph{path} \\
+\hline
+-h, -{}-help & Wyświetla pomoc \\
+\hline
+-V, -{}-version & Wyświetla wersję programu  \\
+\hline
+\end{tabular}
+\end{center}
+\end{table}
+
+\noindent \textbf{Przykłady uruchamiania}:
+\newline\newline
+Pojedyncza iteracja, z domyślną konfiguracją przez 24 godziny czasu symulacji
+
+{
+\fontencoding{T1}\selectfont 
+\begin{minted}{shell}
+cassidy --duration 24
+\end{minted}
+}
+
+\noindent Dziesięć iteracji, z konfiguracją wczytaną z pliku \emph{my\_cfg.toml} przez 24 godziny czasu symulacji
+
+{
+\fontencoding{T1}\selectfont 
+\begin{minted}{shell}
+cassidy --duration 24 --iterations 10 --with-config my_cfg.toml
+\end{minted}
+}
+
+\noindent Dziesięć iteracji, z konfiguracją wczytaną z pliku \emph{my\_cfg.toml} przez 24 godziny czasu symulacji, z włączonym trybem uśpienia oraz wyświetlaniem wyników cząstkowych
+
+{
+\fontencoding{T1}\selectfont 
+\begin{minted}{shell}
+cassidy --duration 24 --iterations 10 --with-config my_cfg.toml --enable-sleep \
+	--show-partial-results
+\end{minted}
+}
+
+\noindent Pojedyncza iteracja, z konfiguracją wczytaną z pliku \emph{my\_cfg.toml} przez 24 godziny czasu symulacji, dla każdej wartości parametru zdefiniowanego w pliku \emph{my\_walk\_cfg.toml}
+
+{
+\fontencoding{T1}\selectfont 
+\begin{minted}{shell}
+cassidy --duration 24 --with-config my_cfg.toml --walk-over my_walk_cfg.toml
+\end{minted}
+}
+
+\subsection{Pliki log}
+Program \emph{cassidy} może wygenerować jeden lub więcej z czterech typów pliku log:
+\begin{enumerate}
+\item gdy przełącznik \emph{-{}-walk-over} NIE jest użyty, wyniki symulacji, w formacie czytelnym dla człowieka, są wyświetlane oraz zapisywane do pliku \emph{sim\_report}
+\item gdy przełącznik \emph{-{}-walk-over} jest użyty, wyniki symulacji, w formacie \emph{csv}, są zapisywane do pliku \emph{sim\_report}. Pierwsza linia zawiera nazwy zapisywanych sygnałów, a pierwsza kolumna zawsze zawiera wartość parametru wymienionego w pliku konfiguracyjnym
+\item gdy przełącznik \emph{-{}-log} jest użyty, każdy \emph{event} wykonany w symulacji jest zapisywany do osobnego pliku log pod ścieżką "sim.run\_[run\_no]\_no\_[iteration\_no]"
+\item gdy przełącznik \emph{-{}-log-wave} jest użyty, po każdym wykonanym \emph{event'cie} zużycie zasobów oraz stan każdej stacji są zapisywane do osobnego pliku log pod ścieżką "sim\_bin.run\_[run\_no]\_no\_[iteration\_no]"
+\end{enumerate}
+
+\subsection{Pliki konfiguracyjne}
+\subsubsection{Konfiguracja symulacji}
+Plik konfiguracji symulacji, w formacie \emph{toml}, zawiera wszystkie parametry symulacji oprócz jej całkowitego trwania. Poniżej znajduje się domyślna konfiguracja, którą można również uzyskać za pomocą przełącznika \emph{-{}-save-default-config}:
+
+{
+\fontencoding{T1}\selectfont 
+\begin{minted}{toml}
+process_time_max = 15000 # Górny zakres czasu przetwarzania użytkownika
+process_time_min = 1000  # Dolny zakres czasu przetwarzania użytkownika
+lambda = 10.0            # Średnia liczba napływających użytkowników na sekundę w każdej
+                         #   stacji bazowej. Ta wartość będzie przemnożona przez
+                         #   współczynnik z listy lambda_coefs
+resources_count = 273    # Liczba bloków zasobów w każdej stacji
+sleep_threshold = 20     # Próg z zakresu <0, 100>%. Jeżeli zużycie zasobów stacji będzie
+                         #   poniżej tego progu, stacja spróbuje przejść w stan uśpienia
+wakeup_threshold = 80    # Próg z zakresu <0, 100>%. Jeżeli zużycie zasbów stacji będzie
+                         #   powyżej tego progu, system spróbuje wybudzić jedną uśpioną stację
+stations_count = 10      # Liczba stacji bazowych w systemie
+active_power = 200.0     # Moc pobierana przez stację w stanie aktywnym
+sleep_power = 1.0        # Moc pobierana przez stację w stanie uśpienia
+wakeup_power = 1000.0    # Jednostkowa moc pobierana przez stację, która jest przełączana
+                         #   ze stanu uśpienia do aktywnego i vice versa
+wakeup_delay = 50        # Opóźnienie przełączania stacji ze stanu uśpienia do aktywnego
+                         #   i vice versa
+log_buffer = 10000       # Rozmiar bufora loggera. Obecnie to ustawienie nie ma znaczenia
+
+[[lambda_coefs]]         # Lista par (współczynnik lambda, czas trwania)
+time = 8.0               # Czas trwania, wyrażony w godzinach, tej fazy
+coef = 0.5               # Współczynnik lambda tej fazy
+
+[[lambda_coefs]]
+time = 6.0               # Czas trwania fazy jest względny, dlatego ta faza będzie trwać
+                         # przez 6 godzin po zakończeniu poprzedniej fazy. W tym przykładzie
+                         # będzie to zakres od 8 godziny do 14 godziny czasu symulacji
+coef = 0.75
+
+[[lambda_coefs]]
+time = 4.0               # Jeżeli całkowity czas trwania symulacji jest dłuższy od sumy
+                         # czasów trwania wszystkich faz, cykl rozpocznie się od początku
+coef = 1.0
+
+[[lambda_coefs]]
+time = 6.0
+coef = 0.75
+\end{minted}
+}
+
+\subsubsection{Konfiguracja iteracji}
+Plik konfiguracji iteracji, w formacie \emph{toml}, zawiera nazwę parametru, po którym program będzie iterował, oraz zakres jego wartości. Program nie posiada domyślnej konfiguracji i użytkownik musi zapewnić własną.
+
+{
+\fontencoding{T1}\selectfont 
+\begin{minted}{toml}
+var = "Lambda"  # Nazwa zmiennej po której nastąpi iteracja. Możliwe wartości to Lambda,
+                #   SleepLow (sleep_threshold) oraz SleepHigh (wakeup_threshold)
+start = 10.0    # Początkowa wartość zmiennej
+end = 50.0      # Końcowa wartość zmiennej
+step = 5.0      # Wartość która zostanie dodana do parametru po każdej iteracji.
+                # W tym przykładzie symulacja zostanie wykonana dla wartości lambda:
+                # [10, 15, 20, 25, 30, 35, 40, 45, 50]
+\end{minted}
+}
+
+\subsection{Skrypty pomocnicze}\label{python_scripts}
+Aby ułatwić pracę z programem, przygotowano skrypty w języku \emph{Python} do wizualizacji danych zapisanych w \emph{logach} generowanych przez program. Skrypty znajdują się w folderze \emph{scripts/} w załączonym repozytorium.
+
+\subsubsection{parse\_bin\_log.py}
+Skrypt służący do wyświetlania binarnych plików log generowanych przełącznikiem \emph{-{}-log-wave}.
+{
+\fontencoding{T1}\selectfont 
+\begin{minted}{shell}
+Usage: python parse_bin_log.py <path_to_log> [subsampling]
+\end{minted}
+}
+
+\noindent Przykład wczytania co setnej próbki z pliku \emph{sim.log}.
+{
+\fontencoding{T1}\selectfont 
+\begin{minted}{shell}
+python parse_bin_log.py sim.log 100
+\end{minted}
+}
+\noindent Domyślnie zostaną wyświetlone dane tylko z pierwszej stacji. Aby wyświetlić/ ukryć dane z pozostały stacji należy klikną na odpowiednią linię na legendzie wykresu.
+
+\subsubsection{parse\_csv\_log.py}
+Skrypt służący do wyświetlania zawartości z raportu symulacji w formacie \emph{csv} generowanego przełącznikiem \emph{-{}-walk-over}.
+{
+\fontencoding{T1}\selectfont 
+\begin{minted}{shell}
+Usage: python parse_csv_log.py <path_to_log>]
+\end{minted}
+}
+
+\subsubsection{rng\_histograms.py}
+Skrypt do wyświetlania wyników generatorów liczb losowych czasu przetwarzania użytkownika oraz czasu do pojawienia się następnego użytkownika. Aby wygenerować dane z generatorów należy użyć poniższej komendy:
+{
+\fontencoding{T1}\selectfont 
+\begin{minted}{shell}
+cargo test -- test_rng generate_lambda
+\end{minted}
+}
+\noindent Następnie aby wyświetlić wykresy należy użyć poniższej komendy z folderu \emph{scripts/}:
+{
+\fontencoding{T1}\selectfont 
+\begin{minted}{shell}
+python rng_histograms.py
+\end{minted}
+}

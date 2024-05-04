@@ -1,0 +1,127 @@
+\section{Struktury}
+\subsection{Struktury konfiguracyjne}
+Wszystkie struktury konfiguracyjne oraz metody bezpośrednio z nimi związane znajdują się w pliku \emph{src/config.rs}
+\newline\newline
+\noindent Struktura \emph{Cli} zawiera pola odpowiadające wszystkim przełącznikom, których można użyć przy uruchamianiu programu. Sprawdzanie poprawności danych i konwersja na odpowiednie typy jest realizowana za pośrednictwem biblioteki \emph{Clap}.
+\newline\newline
+\noindent Struktura \emph{Config} zawiera wszystkie pola pliku konfiguracyjnego symulacji. Wczytywanie danych jest realizowane za pomocą bibliotek \emph{Serde} oraz \emph{toml}. Lista współczynników $\lambda$ jest reprezentowana wektorem struktur \emph{LambdaPoint}. Każda instancja zawiera dwa pola:
+\begin{itemize}
+\item time -- czas trwania danej fazy
+\item coef -- współczynnik $\lambda$
+\end{itemize}
+\noindent Poprawność danych jest sprawdzana metodą \emph{validate()} zaimplementowaną dla struktury \emph{Config}.
+\newline\newline
+\noindent Struktura \emph{WalkOverConfig} zawiera wszystkie pola pliku konfiguracyjnego iteracji po zadanym parametrze. Wczytywanie i walidacja danych z pliku jest realizowana za pomocą bibliotek \emph{Serde} i \emph{toml}.
+
+
+\subsection{Struktura użytkownika -- \emph{User}}
+Struktura modelująca pojedynczego użytkownika oraz wszystkie zaimplementowane dla niej metody znajdują się w pliku \emph{src/user.rs}. Struktura zawiera unikatowy identyfikator (\emph{id}), czas pojawienia się użytkownika w systemie (\emph{start}) oraz czas zakończenia obsługi (\emph{end}), który jest sumą czasu pojawienia się i losowego czasu obsługi, losowanego z rozkładu równomiernego.
+{
+\fontencoding{T1}\selectfont 
+\begin{minted}{rust}
+pub struct User {
+    pub id: usize,
+    pub start: u64,
+    pub end: u64,
+}
+
+impl User {
+    pub fn new(id: usize, curr_time: u64, generator: &mut StdRng, cfg: &Config) -> User {
+        // convert process_time from miliseconds to microseconds
+        let delay: u64 =
+            generator.gen_range((cfg.process_time_min * 1000)..=(cfg.process_time_max * 1000));
+        User {
+            id,
+            start: curr_time,
+            end: curr_time + delay,
+        }
+    }
+}
+\end{minted}
+}
+
+\subsection{Struktura stacji bazowej -- \emph{BaseStation}}
+Struktura modelująca stację bazową i zaimplementowane na niej metody znajdują się w pliku \emph{src/basestation.rs}. Każda instancja stacji zawiera unikatowy identyfikator (\emph{id}), kopiec binarny reprezentujący bloki zasobów (\emph{resources}), znacznik czasu pojawienia się kolejnego użytkownika (\emph{next\_user\_add}), stan stacji (\emph{state}) oraz liczniki zużytej mocy (\emph{total\_power}), zużytych zasobów (\emph{total\_usage}) i czasu w trybie uśpienia (\emph{sleep\_time}).
+
+{
+\fontencoding{T1}\selectfont 
+\begin{minted}{rust}
+pub struct BaseStation {
+    pub id: usize,
+    resources: BinaryHeap<User, FnComparator<fn(&User, &User) -> Ordering>>,
+    pub next_user_add: u64,
+    pub state: BaseStationState,
+    pub total_power: f64,
+    pub total_usage: f64,
+    pub sleep_time: u64,
+}
+\end{minted}
+}
+
+\noindent Stan stacji bazowej jest reprezentowany jednym z wariantów typu wyliczeniowego (ang. \emph{enum}) \emph{BaseStationState}. Stany \emph{PowerUp} i \emph{PowerDown}, reprezentujące stan przełączenia pomiędzy stanami aktywnym i uśpienia, przechowują znacznik czasu zakończenia tego stanu. Zdarzenia generowane przez stację są reprezentowane przez typ wyliczeniowy \emph{BaseStationEvent}.
+{
+\fontencoding{T1}\selectfont 
+\begin{minted}{rust}
+pub enum BaseStationState {
+    Active,
+    Sleep,
+    PowerUp(u64),   // Station is during power-up process
+    PowerDown(u64), // Station is during power-down process
+}
+
+pub enum BaseStationEvent {
+    ReleaseUser,
+    AddUser,
+    PowerUp,
+    ShutDown,
+}
+\end{minted}
+}
+
+\noindent Po zakończeniu symulacji, zawartości liczników są dzielone przez czas trwania symulacji, a następnie są zwracane jako instancja struktury \emph{BaseStationResult}.
+{
+\fontencoding{T1}\selectfont 
+\begin{minted}{rust}
+pub struct BaseStationResult {
+    pub average_power: f64,
+    pub average_usage: f64,
+    pub average_sleep_time: f64,
+}
+\end{minted}
+}
+
+\subsection{Struktura kontenera symulacji -- \emph{SimContainer}}
+Struktura \emph{SimContainer}, zdefiniowana w pliku \emph{src/sim\_container.rs}, jest abstrakcyjną strukturą modelującą system. Zawiera jedynie instancje struktur konfiguracyjnych. Stan symulacji, modelowany strukturą \emph{SimState}, jest tworzony osobno dla każdego przebiegu symulacji. Niezależność przebiegów umożliwia proste zrównoleglenie obliczeń za pomocą biblioteki \emph{Rayon}. Dwie najważniejsze metody zaimplementowane na strukturze \emph{SimContainer} to:
+\begin{itemize}
+\item \emph{simulate()} -- tworzy nową instancję stanu i uruchamia jeden przebieg symulacji. Wyniki są zwracane jako instancja struktury \emph{SimResults}, które jest zdefiniowana w pliku \emph{src/sim\_container/sim\_results.rs},
+\item \emph{run()} -- wywołuje równolegle metodę \emph{simulate()} a następnie uśrednia uzyskane wyniki, które są zwracane jako pojedyncza instancja struktury \emph{SimResults}, która zawiera uśrednione wyniki z całego systemu oraz wektor wyników z poszczególnych stacji
+\end{itemize}
+{
+\fontencoding{T1}\selectfont 
+\begin{minted}{rust}
+pub struct SimContainer {
+    cli: Cli,
+    cfg: Config,
+}
+
+pub struct SimState {
+    pub time: u64,
+    pub next_user_id: usize,
+    pub lambda: f64,
+    pub lambda_update_time: u64,
+    pub lambda_update_idx: usize,
+    pub all_users: usize,
+    pub redirected_users: usize,
+    pub dropped_users: usize,
+}
+
+pub struct SimResults {
+    pub average_usage: f64,
+    pub average_power: f64,
+    pub average_drop_rate: f64,
+    pub total_users: usize,
+    pub dropped_users: usize,
+    pub stations: Vec<BaseStationResult>,
+}
+\end{minted}
+}

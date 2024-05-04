@@ -1,4 +1,3 @@
-import sys
 import matplotlib.pyplot as plt
 
 
@@ -19,16 +18,18 @@ def read_station(path):
 
 
 if __name__ == "__main__":
-    if len(sys.argv) < 3:
-        print(
-            "Not enough arguments: usage python3 rng_histograms.py station.log user.log"
-        )
-        quit()
-    station_path = sys.argv[1]
-    user_path = sys.argv[2]
+    station_path = "../tests/station_rng.log"
+    user_path = "../tests/user_rng.log"
 
     station_data = read_station(station_path)
     user_data = read_user(user_path)
 
-    plt.hist(user_data, bins=20)
+    station1 = list(station_data.values())[0]
+
+    fig, (ax1, ax2) = plt.subplots(1, 2)
+    ax1.hist(user_data, bins=20)
+    ax1.set_title("User RNG")
+    ax2.hist(station1, bins=20)
+    ax2.set_title("Station RNG")
+
     plt.show()
