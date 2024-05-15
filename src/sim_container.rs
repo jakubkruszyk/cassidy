@@ -391,12 +391,31 @@ impl SimContainer {
                 res
             })
             .collect();
+        // write partial results to separate log file
+        if self.cli.show_partial_results {
+            let partial_path = format!("sim_partial.run_{}", run_no);
+            Self::save_partial_results(&partial_sim_res, &partial_path.into());
+        }
         // average results
         for partial in partial_sim_res.iter() {
             sim_res.add(partial);
         }
         sim_res.div(self.cli.iterations as f64);
         sim_res
+    }
+
+    fn save_partial_results(results: &Vec<SimResults>, path: &PathBuf) {
+        let file = std::fs::File::create(path);
+        match file {
+            Ok(mut f) => {
+                let _ = f.write_all(results[0].get_csv_header().as_bytes());
+                for res in results.iter() {
+                    let _ = f.write_all(res.get_csv().as_bytes());
+                    let _ = f.write_all("\n".as_bytes());
+                }
+            }
+            Err(e) => println!("{}", e),
+        }
     }
 }
 
