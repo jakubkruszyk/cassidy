@@ -8,7 +8,7 @@ cassidy [Options] --duration <f64>
 \end{minted}
 }
 
-\noindent Dostępne opcje przedstawiono w tabeli \ref{options_table}.
+\noindent Przełącznik \emph{duration} ustawia czas trwania symulacji wyrażonego w godzinach. Wszystkie dostępne opcje przedstawiono w tabeli \ref{options_table}.
 \newline\newline
 \begin{table}[h]
 \caption{Dostępne przełączniki programu \emph{cassidy}}
@@ -16,11 +16,11 @@ cassidy [Options] --duration <f64>
 \begin{center}
 \fontencoding{T1}\selectfont
 \renewcommand{\arraystretch}{1.5}
-\begin{tabular}{|l|l|}
+\begin{tabular}{|l|p{0.75\textwidth}|}
 \hline 
 Opcja & Opis \\ 
 \hline 
--{}-with-config & Ścieżka do pliku konfiguracyjnego symulacji \\ 
+-{}-with-config <path> & Ścieżka do pliku konfiguracyjnego symulacji \\ 
 \hline
 -{}-seed <u64> & Ziarno generatora liczb losowych. [domyślnie: entropia systemu] \\
 \hline
@@ -34,7 +34,7 @@ Opcja & Opis \\
 \hline
 -{}-save-default-config <path> & Domyślna konfiguracja symulacji zostanie zapisana pod ścieżką \emph{path} \\
 \hline
--{}-show-partial-results & Aktywuje wyświetlanie wyników każdej iteracji \\
+-{}-show-partial-results & Aktywuje wyświetlanie wyników cząstkowych oraz\newline zapisanie ich do pliku "sim\_partial.run[run\_no]" \\
 \hline
 -{}-log-wave & Aktywuje generowanie pliku log w formacie binarnym \\
 \hline
@@ -90,23 +90,24 @@ cassidy --duration 24 --with-config my_cfg.toml --walk-over my_walk_cfg.toml
 }
 
 \subsection{Pliki log}
-Program \emph{cassidy} może wygenerować jeden lub więcej z czterech typów pliku log:
+Program \emph{cassidy} może wygenerować jeden lub więcej z pięciu typów pliku log:
 \begin{enumerate}
 \item gdy przełącznik \emph{-{}-walk-over} NIE jest użyty, wyniki symulacji, w formacie czytelnym dla człowieka, są wyświetlane oraz zapisywane do pliku \emph{sim\_report}
 \item gdy przełącznik \emph{-{}-walk-over} jest użyty, wyniki symulacji, w formacie \emph{csv}, są zapisywane do pliku \emph{sim\_report}. Pierwsza linia zawiera nazwy zapisywanych sygnałów, a pierwsza kolumna zawsze zawiera wartość parametru wymienionego w pliku konfiguracyjnym
-\item gdy przełącznik \emph{-{}-log} jest użyty, każdy \emph{event} wykonany w symulacji jest zapisywany do osobnego pliku log pod ścieżką "sim.run\_[run\_no]\_no\_[iteration\_no]"
-\item gdy przełącznik \emph{-{}-log-wave} jest użyty, po każdym wykonanym \emph{event'cie} zużycie zasobów oraz stan każdej stacji są zapisywane do osobnego pliku log pod ścieżką "sim\_bin.run\_[run\_no]\_no\_[iteration\_no]"
+\item gdy przełącznik \emph{-{}-log} jest użyty, każde zdarzenie wykonane w symulacji jest zapisywane do osobnego pliku log pod ścieżką "sim.run\_[run\_no]\_no\_[iteration\_no]"
+\item gdy przełącznik \emph{-{}-log-wave} jest użyty, po każdym wykonanym zdarzeniu, zużycie zasobów oraz stan każdej stacji są zapisywane do osobnego pliku log pod ścieżką "sim\_bin.run\_[run\_no]\_no\_[iteration\_no]"
+\item gdy przełącznik \emph{-{}-show-partial-results} jest użyty, wyniki pośrednie są zapisywane w formacie \emph{csv} do pliku "sim\_partial.run\_[run\_no]"
 \end{enumerate}
 
 \subsection{Pliki konfiguracyjne}
 \subsubsection{Konfiguracja symulacji}
-Plik konfiguracji symulacji, w formacie \emph{toml}, zawiera wszystkie parametry symulacji oprócz jej całkowitego trwania. Poniżej znajduje się domyślna konfiguracja, którą można również uzyskać za pomocą przełącznika \emph{-{}-save-default-config}:
+Plik konfiguracji symulacji, w formacie \emph{toml}, zawiera wszystkie parametry symulacji oprócz jej całkowitego czasu trwania. Poniżej znajduje się domyślna konfiguracja, którą można również uzyskać za pomocą przełącznika \emph{-{}-save-default-config}:
 
 {
 \fontencoding{T1}\selectfont 
 \begin{minted}{toml}
-process_time_max = 15000 # Górny zakres czasu przetwarzania użytkownika
-process_time_min = 1000  # Dolny zakres czasu przetwarzania użytkownika
+process_time_max = 15000 # Górny zakres czasu [ms] przetwarzania użytkownika
+process_time_min = 1000  # Dolny zakres czasu [ms] przetwarzania użytkownika
 lambda = 10.0            # Średnia liczba napływających użytkowników na sekundę w każdej
                          #   stacji bazowej. Ta wartość będzie przemnożona przez
                          #   współczynnik z listy lambda_coefs
@@ -151,8 +152,8 @@ Plik konfiguracji iteracji, w formacie \emph{toml}, zawiera nazwę parametru, po
 {
 \fontencoding{T1}\selectfont 
 \begin{minted}{toml}
-var = "Lambda"  # Nazwa zmiennej po której nastąpi iteracja. Możliwe wartości to Lambda,
-                #   SleepLow (sleep_threshold) oraz SleepHigh (wakeup_threshold)
+var = "Lambda"  # Nazwa zmiennej po której nastąpi iteracja. Możliwe wartości to "Lambda",
+                #   "SleepLow" (sleep_threshold) oraz "SleepHigh" (wakeup_threshold)
 start = 10.0    # Początkowa wartość zmiennej
 end = 50.0      # Końcowa wartość zmiennej
 step = 5.0      # Wartość która zostanie dodana do parametru po każdej iteracji.

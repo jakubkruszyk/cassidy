@@ -409,6 +409,7 @@ impl SimContainer {
         match file {
             Ok(mut f) => {
                 let _ = f.write_all(results[0].get_csv_header().as_bytes());
+                let _ = f.write_all("\n".as_bytes());
                 for res in results.iter() {
                     let _ = f.write_all(res.get_csv().as_bytes());
                     let _ = f.write_all("\n".as_bytes());

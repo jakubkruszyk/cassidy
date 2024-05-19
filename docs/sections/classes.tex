@@ -41,7 +41,11 @@ impl User {
 }
 
 \subsection{Struktura stacji bazowej -- \emph{BaseStation}}
-Struktura modelująca stację bazową i zaimplementowane na niej metody znajdują się w pliku \emph{src/basestation.rs}. Każda instancja stacji zawiera unikatowy identyfikator (\emph{id}), kopiec binarny reprezentujący bloki zasobów (\emph{resources}), znacznik czasu pojawienia się kolejnego użytkownika (\emph{next\_user\_add}), stan stacji (\emph{state}) oraz liczniki zużytej mocy (\emph{total\_power}), zużytych zasobów (\emph{total\_usage}) i czasu w trybie uśpienia (\emph{sleep\_time}).
+Struktura modelująca stację bazową i zaimplementowane na niej metody znajdują się w pliku \emph{src/basestation.rs}. Każda instancja stacji zawiera unikatowy identyfikator (\emph{id}), kopiec binarny reprezentujący bloki zasobów (\emph{resources}), znacznik czasu pojawienia się kolejnego użytkownika (\emph{next\_user\_add}), stan stacji (\emph{state}) oraz liczniki zużytej mocy (\emph{total\_power}), zużytych zasobów (\emph{total\_usage}) i czasu w trybie uśpienia (\emph{sleep\_time}). Kopiec binarny został wybrany jako głównu struktura danych w systemie ze względu na stałą złożoność $O(1)$ dostępu do najmniejszego elementu oraz logarytmiczną złożoność $O(log{n})$ dodawania i usuwania elementów z kopca.
+\newline\newline
+\noindent Znacznik czasu pojawienia się nowego użytkownika jest wyznaczany z rozkładu wykładniczego, którego gęstość prawdopodobieństwa określona jest wzorem:
+\[ \lambda \cdot e^{-\lambda x} \]
+gdzie parametr x to liczba losowa wytworzona generatorem liczb losowych.
 
 {
 \fontencoding{T1}\selectfont 

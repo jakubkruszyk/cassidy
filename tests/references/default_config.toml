@@ -1,6 +1,6 @@
 process_time_max = 15000
 process_time_min = 1000
-lambda = 70.0
+lambda = 20.0
 resources_count = 273
 sleep_threshold = 20
 wakeup_threshold = 80
